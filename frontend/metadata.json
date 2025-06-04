@@ -1,0 +1,5 @@
+{
+  "name": "HR IntelliHub",
+  "description": "An AI-powered platform to automate and assist with various HR tasks, featuring a chatbot for queries, task management for AI workers, and modules for recruitment, policy management, and onboarding.",
+  "requestFramePermissions": []
+}
