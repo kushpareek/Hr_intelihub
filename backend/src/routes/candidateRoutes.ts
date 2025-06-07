@@ -8,16 +8,20 @@ import {
   deleteCandidate
 } from '../controllers/candidateController';
 import { protect } from '../middleware/authMiddleware';
+import { checkSubscription } from '../middleware/subscriptionMiddleware';
 
 const router = express.Router();
+router.use(protect);
+
+const proTiers: ('Pro' | 'Enterprise' | 'Trial')[] = ['Pro', 'Enterprise', 'Trial'];
 
 router.route('/')
-  .get(protect, getCandidates)
-  .post(protect, createCandidate);
+  .get(checkSubscription(proTiers), getCandidates)
+  .post(checkSubscription(proTiers), createCandidate);
 
 router.route('/:id')
-  .get(protect, getCandidateById)
-  .put(protect, updateCandidate)
-  .delete(protect, deleteCandidate);
+  .get(checkSubscription(proTiers), getCandidateById)
+  .put(checkSubscription(proTiers), updateCandidate)
+  .delete(checkSubscription(proTiers), deleteCandidate);
 
 export default router;

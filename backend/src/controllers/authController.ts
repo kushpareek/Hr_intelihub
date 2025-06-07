@@ -43,7 +43,7 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // Generate token
     const token = jwt.sign(
-        { userId: newUser.id, email: newUser.email, isAdmin: newUser.is_admin },
+        { userId: newUser.id, email: newUser.email, isAdmin: newUser.is_admin, subscriptionTier: newUser.subscription_tier },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
     );
@@ -90,7 +90,7 @@ export const loginUser = async (req: Request, res: Response) => {
 
     // Generate token
     const token = jwt.sign(
-        { userId: user.id, email: user.email, isAdmin: user.is_admin },
+        { userId: user.id, email: user.email, isAdmin: user.is_admin, subscriptionTier: user.subscription_tier },
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
     );

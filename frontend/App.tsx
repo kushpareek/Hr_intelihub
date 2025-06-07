@@ -13,12 +13,9 @@ import {
   ClipboardDocumentListIcon, PaperAirplaneIcon, DocumentCheckIcon, SparklesIcon, LoadingSpinner, 
   EnvelopeIcon, UserMinusIcon, CreditCardIcon, ArrowLeftOnRectangleIcon, ShieldCheckIcon // Added ShieldCheckIcon
 } from './components/common/IconComponents';
-import { 
-    MOCK_CANDIDATES, MOCK_JOB_POSTINGS, MOCK_COMPANY_POLICIES, MOCK_ONBOARDING_ITEMS, 
-    MOCK_AI_TASKS, BRAVO_API_PLACEHOLDER_URL, LINKEDIN_API_PLACEHOLDER_URL, 
-    DOCUSIGN_API_PLACEHOLDER_URL, MOCK_OFFBOARDING_CASES, MOCK_USER_CREDENTIALS, MOCK_ADMIN_CREDENTIALS
-} from './constants';
-import { analyzeTextWithSystemInstruction } from './services/geminiService';
+// Removed MOCK_... imports, constants.ts should only export API_BASE_URL and GEMINI_MODEL_TEXT by now.
+// import { analyzeTextWithSystemInstruction } from './services/geminiService'; // This service will be used within specific views/components, not directly in App.tsx for login
+import { apiClient } from './services/api'; // Import apiClient
 
 
 const App: React.FC = () => {
@@ -26,53 +23,48 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   
-  const [candidates, setCandidates] = useState<Candidate[]>(MOCK_CANDIDATES);
-  const [jobPostings, setJobPostings] = useState<JobPosting[]>(MOCK_JOB_POSTINGS);
-  const [policies, setPolicies] = useState<CompanyPolicy[]>(MOCK_COMPANY_POLICIES);
-  const [onboardingItems, setOnboardingItems] = useState<OnboardingItem[]>(MOCK_ONBOARDING_ITEMS);
-  const [offboardingCases, setOffboardingCases] = useState<OffboardingCase[]>(MOCK_OFFBOARDING_CASES);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [policies, setPolicies] = useState<CompanyPolicy[]>([]);
+  const [onboardingItems, setOnboardingItems] = useState<OnboardingItem[]>([]);
+  const [offboardingCases, setOffboardingCases] = useState<OffboardingCase[]>([]);
+  const [aiTasks, setAiTasks] = useState<AITask[]>([]); // Added aiTasks state
   
   const [isLoading, setIsLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
    useEffect(() => {
-    const storedAuth = localStorage.getItem('hrIntelliHubAuth');
+    const storedToken = localStorage.getItem('hrIntelliHubAuthToken');
     const storedUser = localStorage.getItem('hrIntelliHubUser');
-    if (storedAuth === 'true' && storedUser) {
+    if (storedToken && storedUser) {
       try {
         const user: User = JSON.parse(storedUser);
+        // Optional: Add a check here to verify token with backend /me endpoint
+        // For now, we trust the stored data if token exists
         setIsAuthenticated(true);
         setCurrentUser(user);
-        // If admin, default to admin dashboard, otherwise regular dashboard
         setActiveView(user.isAdmin ? 'adminDashboard' : 'dashboard');
       } catch (e) {
-        localStorage.removeItem('hrIntelliHubAuth');
+        localStorage.removeItem('hrIntelliHubAuthToken');
         localStorage.removeItem('hrIntelliHubUser');
       }
     }
   }, []);
 
 
-  const handleLoginSuccess = (email: string, name?: string, tier?: SubscriptionTier, isAdmin?: boolean) => {
-    const user: User = { 
-      id: `user-${Date.now()}`, 
-      email, 
-      name: name || "Valued User", 
-      subscriptionTier: tier || 'Trial',
-      isAdmin: isAdmin || false 
-    };
+  const handleLoginSuccess = (loggedInUser: User, token: string) => { // Expect User object and token
     setIsAuthenticated(true);
-    setCurrentUser(user);
-    setActiveView(isAdmin ? 'adminDashboard' : 'dashboard'); // Navigate to appropriate dashboard
-    localStorage.setItem('hrIntelliHubAuth', 'true');
-    localStorage.setItem('hrIntelliHubUser', JSON.stringify(user));
-    console.log("Login successful for:", user);
+    setCurrentUser(loggedInUser); // Set the full user object
+    setActiveView(loggedInUser.isAdmin ? 'adminDashboard' : 'dashboard');
+    localStorage.setItem('hrIntelliHubAuthToken', token); // Store token
+    localStorage.setItem('hrIntelliHubUser', JSON.stringify(loggedInUser));
+    console.log("Login successful for:", loggedInUser);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem('hrIntelliHubAuth');
+    localStorage.removeItem('hrIntelliHubAuthToken'); // Remove token
     localStorage.removeItem('hrIntelliHubUser');
     // activeView will be implicitly reset as LoginView is rendered
     console.log("User logged out.");
@@ -216,216 +208,808 @@ const App: React.FC = () => {
     </li>
   );
 
-  const DashboardView: React.FC = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      <DashboardCard title="Active AI Tasks" value={MOCK_AI_TASKS.filter(t => t.status === TaskStatus.IN_PROGRESS).length} icon={<CogIcon />} description="Tasks currently being processed by AI." onClick={() => setActiveView('aiWorkerMonitor')} color="bg-purple-500" />
-      <DashboardCard title="Candidates Sourced" value={candidates.length} icon={<UserGroupIcon />} description="Total candidates in pipeline." onClick={() => setActiveView('candidateSourcing')} color="bg-green-500"/>
-      <DashboardCard title="Open Positions" value={jobPostings.filter(j => j.status === 'Open').length} icon={<BriefcaseIcon />} description="Jobs currently accepting applications." onClick={() => setActiveView('jobPosting')} color="bg-yellow-500" />
-      <DashboardCard title="Policy Queries Today" value={7} icon={<ChatBubbleIcon />} description="AI assisted policy clarifications." onClick={() => setActiveView('policyCenter')} color="bg-red-500" />
-      <DashboardCard title="Active Onboardings" value={onboardingItems.filter(i => i.status !== 'Completed').length} icon={<ClipboardDocumentListIcon />} description="New hires in onboarding process." onClick={() => setActiveView('onboardingTracker')} color="bg-indigo-500" />
-      <DashboardCard title="Automated Emails Sent" value={128} icon={<PaperAirplaneIcon />} description="Emails sent by automation." onClick={() => setActiveView('emailAutomation')} color="bg-teal-500" />
-      <DashboardCard title="Active Offboarding Cases" value={offboardingCases.filter(c => c.status !== 'Closed').length} icon={<UserMinusIcon />} description="Resignations, Terminations, PIPs." onClick={() => setActiveView('offboardingManagement')} color="bg-pink-500" />
-      <DashboardCard title="Subscription Tier" value={currentUser?.subscriptionTier || 'Trial'} icon={<CreditCardIcon />} description="Manage your subscription." onClick={() => setActiveView('billing')} color="bg-sky-500" />
-    </div>
-  );
+    // --- DashboardView changes within App.tsx ---
+    const DashboardView: React.FC = () => {
+      // State for dashboard specific data if needed, or use global states like candidates, jobPostings
+      const [dashboardStats, setDashboardStats] = useState({
+          activeAiTasks: 0,
+          candidatesSourced: 0,
+          openPositions: 0,
+          policyQueriesToday: 0, // This might remain mock or need a new endpoint
+          activeOnboardings: 0,
+          automatedEmailsSent: 0, // This might remain mock or need a new endpoint
+          activeOffboardingCases: 0,
+      });
 
-  const CandidateSourcingView: React.FC = () => (
-    <div className="bg-white p-6 rounded-lg shadow-xl">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><UserGroupIcon className="w-7 h-7 mr-2 text-green-600"/>Candidate Sourcing</h2>
-      <div className="mb-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
-        <h3 className="text-lg font-semibold text-blue-700 mb-2">AI Powered Sourcing</h3>
-        <p className="text-sm text-blue-600 mb-3">
-          Our AI can source candidates from various platforms. Enter criteria below to initiate.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input type="text" placeholder="Job Title (e.g., Software Engineer)" className="p-2 border rounded"/>
-          <input type="text" placeholder="Skills (e.g., React, Node.js)" className="p-2 border rounded"/>
-          <input type="text" placeholder="Location (e.g., Remote, New York)" className="p-2 border rounded"/>
-          <select className="p-2 border rounded bg-white">
-            <option>LinkedIn (Conceptual)</option>
-            <option>GitHub (Conceptual)</option>
-          </select>
-        </div>
-        <button 
-            onClick={() => handleSimulatedApiCall("Candidate Sourcing via LinkedIn", LINKEDIN_API_PLACEHOLDER_URL, {jobTitle: "Software Engineer"})}
-            className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center" disabled={isLoading}>
-            {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
-            Start AI Sourcing
-        </button>
-      </div>
-      <h3 className="text-xl font-medium text-gray-700 mb-4">Current Candidates</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {candidates.map(c => (
-              <tr key={c.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{c.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{c.role}</td>
-                <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${c.status === 'Offered' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{c.status}</span></td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{c.platform}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+      useEffect(() => {
+        const fetchData = async () => {
+          try {
+            // apiClient should be imported from './services/api'
+            const [fetchedCandidates, fetchedJobPostings, fetchedOnboardingItems, fetchedOffboardingCases, fetchedAiTasks] = await Promise.all([
+              apiClient<Candidate[]>('/candidates', 'GET'),
+              apiClient<JobPosting[]>('/jobpostings', 'GET'),
+              apiClient<OnboardingItem[]>('/onboardingitems', 'GET'),
+              apiClient<OffboardingCase[]>('/offboardingcases', 'GET'),
+              apiClient<AITask[]>('/aitasks', 'GET') // Assuming /api/aitasks is ready
+            ]);
 
-  const JobPostingView: React.FC = () => (
-    <div className="bg-white p-6 rounded-lg shadow-xl">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><BriefcaseIcon className="w-7 h-7 mr-2 text-yellow-600"/>Job Postings</h2>
-       <div className="mb-6 p-4 border border-yellow-200 bg-yellow-50 rounded-md">
-        <h3 className="text-lg font-semibold text-yellow-700 mb-2">Create New Job Posting (AI Assisted)</h3>
-        <p className="text-sm text-yellow-600 mb-3">
-          Draft a job description and our AI can help refine it and post to multiple platforms.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-            <input type="text" placeholder="Job Title" className="p-2 border rounded"/>
-            <input type="text" placeholder="Department" className="p-2 border rounded"/>
+            setCandidates(fetchedCandidates); // Update global state if you lift it fully
+            setJobPostings(fetchedJobPostings);
+            setOnboardingItems(fetchedOnboardingItems);
+            setOffboardingCases(fetchedOffboardingCases);
+            setAiTasks(fetchedAiTasks); // Update AI tasks state
+
+            setDashboardStats({
+              activeAiTasks: fetchedAiTasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length,
+              candidatesSourced: fetchedCandidates.length,
+              openPositions: fetchedJobPostings.filter(j => j.status === 'Open').length,
+              policyQueriesToday: 7, // MOCK - replace if endpoint exists
+              activeOnboardings: fetchedOnboardingItems.filter(i => i.status !== 'Completed').length,
+              automatedEmailsSent: 128, // MOCK - replace if endpoint exists
+              activeOffboardingCases: fetchedOffboardingCases.filter(c => c.status !== 'Closed').length,
+            });
+
+          } catch (error) {
+            console.error("Error fetching dashboard data:", error);
+            setActionMessage(`Error fetching dashboard data: ${(error as Error).message}`);
+          }
+        };
+        if (isAuthenticated) { // Only fetch if authenticated
+            fetchData();
+        }
+      }, [isAuthenticated]); // Refetch if auth state changes
+
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <DashboardCard title="Active AI Tasks" value={dashboardStats.activeAiTasks} icon={<CogIcon />} description="Tasks currently being processed by AI." onClick={() => setActiveView('aiWorkerMonitor')} color="bg-purple-500" />
+          <DashboardCard title="Candidates Sourced" value={dashboardStats.candidatesSourced} icon={<UserGroupIcon />} description="Total candidates in pipeline." onClick={() => setActiveView('candidateSourcing')} color="bg-green-500"/>
+          <DashboardCard title="Open Positions" value={dashboardStats.openPositions} icon={<BriefcaseIcon />} description="Jobs currently accepting applications." onClick={() => setActiveView('jobPosting')} color="bg-yellow-500" />
+          <DashboardCard title="Policy Queries Today" value={dashboardStats.policyQueriesToday} icon={<ChatBubbleIcon />} description="AI assisted policy clarifications." onClick={() => setActiveView('policyCenter')} color="bg-red-500" />
+          <DashboardCard title="Active Onboardings" value={dashboardStats.activeOnboardings} icon={<ClipboardDocumentListIcon />} description="New hires in onboarding process." onClick={() => setActiveView('onboardingTracker')} color="bg-indigo-500" />
+          <DashboardCard title="Automated Emails Sent" value={dashboardStats.automatedEmailsSent} icon={<PaperAirplaneIcon />} description="Emails sent by automation." onClick={() => setActiveView('emailAutomation')} color="bg-teal-500" />
+          <DashboardCard title="Active Offboarding Cases" value={dashboardStats.activeOffboardingCases} icon={<UserMinusIcon />} description="Resignations, Terminations, PIPs." onClick={() => setActiveView('offboardingManagement')} color="bg-pink-500" />
+          <DashboardCard title="Subscription Tier" value={currentUser?.subscriptionTier || 'Trial'} icon={<CreditCardIcon />} description="Manage your subscription." onClick={() => setActiveView('billing')} color="bg-sky-500" />
         </div>
-        <textarea placeholder="Job Description (AI can help generate/refine this)" rows={4} className="w-full p-2 border rounded mb-3"></textarea>
-        <button 
-            onClick={() => handleSimulatedApiCall("Job Description AI review and Post", "conceptual_job_board_api", {jobTitle: "Product Manager", description: "Lead product strategy..."})}
-            className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center" disabled={isLoading}>
-             {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
-            Post Job (AI Assist)
-        </button>
-      </div>
-      <h3 className="text-xl font-medium text-gray-700 mb-4">Current Postings</h3>
-        <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted At</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {jobPostings.map(j => (
-              <tr key={j.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{j.title}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{j.department}</td>
-                <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${j.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{j.status}</span></td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{j.postedAt ? j.postedAt.toLocaleDateString() : 'N/A'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+      );
+    };
+
+    // --- CandidateSourcingView changes within App.tsx ---
+    const CandidateSourcingView: React.FC = () => {
+      // Local state for this view if preferred, or use global `candidates` state from App.tsx
+      // const [localCandidates, setLocalCandidates] = useState<Candidate[]>([]);
+      const [sourcingJobTitle, setSourcingJobTitle] = useState('');
+      const [sourcingSkills, setSourcingSkills] = useState('');
+      const [sourcingLocation, setSourcingLocation] = useState('');
+      const [newCandidateName, setNewCandidateName] = useState('');
+      const [newCandidateEmail, setNewCandidateEmail] = useState('');
+      const [newCandidateRole, setNewCandidateRole] = useState('');
+      const [newCandidatePlatform, setNewCandidatePlatform] = useState('');
+      const [isAddingManually, setIsAddingManually] = useState(false);
+
+
+      useEffect(() => {
+        const fetchCandidates = async () => {
+          if (!isAuthenticated) return;
+          setIsLoading(true); // Assuming isLoading is a state variable in App.tsx or passed down
+          try {
+            const data = await apiClient<Candidate[]>('/candidates', 'GET');
+            setCandidates(data); // Set global candidates state
+          } catch (error) {
+            console.error("Error fetching candidates:", error);
+            setActionMessage(`Error fetching candidates: ${(error as Error).message}`);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchCandidates();
+      }, [isAuthenticated]); // Refetch if auth state changes
+
+      const handleAiSourcing = async () => {
+        // This is where the new AI research functionality will be integrated.
+        // For now, it can create a placeholder AI Task or call a general AI endpoint.
+        setActionMessage('AI Sourcing initiated (placeholder)...');
+        setIsLoading(true);
+        try {
+            // Example: Create an AITask for sourcing
+            const taskPayload = {
+                title: `Source candidates for ${sourcingJobTitle}`,
+                description: `Skills: ${sourcingSkills}, Location: ${sourcingLocation}`,
+                assigned_to: "Candidate Sourcing AI", // Or a more specific AI worker ID
+                status: TaskStatus.PENDING, // Make sure TaskStatus is imported from types
+            };
+            await apiClient<AITask>('/aitasks', 'POST', taskPayload);
+            setActionMessage(`AI Task created to source candidates for ${sourcingJobTitle}.`);
+            // Optionally, refetch AI tasks list if displayed on current view or dashboard
+        } catch (error) {
+            console.error("Error initiating AI sourcing task:", error);
+            setActionMessage(`Error initiating AI sourcing: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+        // The old handleSimulatedApiCall is removed.
+      };
+
+      const handleAddManualCandidate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCandidateName || !newCandidateRole) {
+            setActionMessage("Candidate name and role are required for manual entry.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const newCandidate: Partial<Candidate> = {
+                name: newCandidateName,
+                email: newCandidateEmail,
+                role: newCandidateRole,
+                platform: newCandidatePlatform || "Manual Entry",
+                status: 'Sourced' // Default status
+            };
+            const createdCandidate = await apiClient<Candidate>('/candidates', 'POST', newCandidate);
+            setCandidates(prev => [...prev, createdCandidate]); // Update global state
+            setActionMessage(`Candidate ${createdCandidate.name} added successfully.`);
+            // Clear form
+            setNewCandidateName('');
+            setNewCandidateEmail('');
+            setNewCandidateRole('');
+            setNewCandidatePlatform('');
+            setIsAddingManually(false);
+        } catch (error) {
+            console.error("Error adding manual candidate:", error);
+            setActionMessage(`Error adding candidate: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><UserGroupIcon className="w-7 h-7 mr-2 text-green-600"/>Candidate Sourcing</h2>
+
+          {/* AI Sourcing Section */}
+          <div className="mb-6 p-4 border border-blue-200 bg-blue-50 rounded-md">
+            <h3 className="text-lg font-semibold text-blue-700 mb-2">AI Powered Sourcing</h3>
+            <p className="text-sm text-blue-600 mb-3">
+              Our AI can source candidates from various platforms. Enter criteria below to initiate.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" placeholder="Job Title (e.g., Software Engineer)" className="p-2 border rounded" value={sourcingJobTitle} onChange={e => setSourcingJobTitle(e.target.value)} />
+              <input type="text" placeholder="Skills (e.g., React, Node.js)" className="p-2 border rounded" value={sourcingSkills} onChange={e => setSourcingSkills(e.target.value)} />
+              <input type="text" placeholder="Location (e.g., Remote, New York)" className="p-2 border rounded" value={sourcingLocation} onChange={e => setSourcingLocation(e.target.value)} />
+              <select className="p-2 border rounded bg-white">
+                <option>LinkedIn (Conceptual)</option>
+                <option>GitHub (Conceptual)</option>
+                <option>Other Platforms (Conceptual)</option>
+              </select>
+            </div>
+            <button
+                onClick={handleAiSourcing}
+                className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center" disabled={isLoading}>
+                {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
+                Start AI Sourcing Task
+            </button>
+          </div>
+
+          {/* Manual Candidate Entry Section */}
+          <div className="my-6">
+            <button onClick={() => setIsAddingManually(!isAddingManually)} className="text-blue-600 hover:text-blue-700 font-medium mb-2">
+                {isAddingManually ? 'Cancel Manual Entry' : '+ Add Candidate Manually'}
+            </button>
+            {isAddingManually && (
+                <form onSubmit={handleAddManualCandidate} className="p-4 border border-gray-200 bg-gray-50 rounded-md space-y-3">
+                    <h3 className="text-md font-semibold text-gray-700">New Candidate Details</h3>
+                    <input type="text" placeholder="Full Name*" className="p-2 border rounded w-full" value={newCandidateName} onChange={e => setNewCandidateName(e.target.value)} required/>
+                    <input type="email" placeholder="Email" className="p-2 border rounded w-full" value={newCandidateEmail} onChange={e => setNewCandidateEmail(e.target.value)} />
+                    <input type="text" placeholder="Role Applied For*" className="p-2 border rounded w-full" value={newCandidateRole} onChange={e => setNewCandidateRole(e.target.value)} required/>
+                    <input type="text" placeholder="Source/Platform (e.g. Referral)" className="p-2 border rounded w-full" value={newCandidatePlatform} onChange={e => setNewCandidatePlatform(e.target.value)} />
+                    <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" disabled={isLoading}>
+                        {isLoading ? 'Saving...' : 'Save Candidate'}
+                    </button>
+                </form>
+            )}
+          </div>
+
+          <h3 className="text-xl font-medium text-gray-700 mb-4">Current Candidates</h3>
+          {isLoading && candidates.length === 0 && <div className="text-center py-4"><LoadingSpinner /> Loading candidates...</div>}
+          {!isLoading && candidates.length === 0 && <div className="text-center py-4 text-gray-500">No candidates found. Start by using AI sourcing or adding manually.</div>}
+
+          {candidates.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
+                    {/* Add Actions column if needed for edit/delete */}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {candidates.map(c => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{c.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{c.role}</td>
+                      <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${c.status === 'Offered' ? 'bg-yellow-100 text-yellow-800' : c.status === 'Hired' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{c.status}</span></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{c.platform}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      );
+    };
+  const JobPostingView: React.FC = () => {
+      const [localJobPostings, setLocalJobPostings] = useState<JobPosting[]>(jobPostings); // Use global or local
+      const [showCreateForm, setShowCreateForm] = useState(false);
+      const [newJobTitle, setNewJobTitle] = useState('');
+      const [newJobDepartment, setNewJobDepartment] = useState('');
+      const [newJobDescription, setNewJobDescription] = useState('');
+      const [newJobStatus, setNewJobStatus] = useState<'Draft' | 'Open' | 'Closed'>('Draft');
+
+      useEffect(() => {
+        const fetchJobPostings = async () => {
+          if (!isAuthenticated) return;
+          setIsLoading(true);
+          try {
+            const data = await apiClient<JobPosting[]>('/jobpostings', 'GET');
+            setJobPostings(data); // Update global state
+            setLocalJobPostings(data); // Update local state if used
+          } catch (error) {
+            console.error("Error fetching job postings:", error);
+            setActionMessage(`Error fetching job postings: ${(error as Error).message}`);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchJobPostings();
+      }, [isAuthenticated]); // Refetch if auth state changes
+
+      // Update localJobPostings when global jobPostings state changes
+      useEffect(() => {
+        setLocalJobPostings(jobPostings);
+      }, [jobPostings]);
+
+
+      const handleCreateJobPosting = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newJobTitle || !newJobStatus) {
+            setActionMessage("Job title and status are required.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const payload: Partial<JobPosting> = {
+                title: newJobTitle,
+                department: newJobDepartment,
+                description: newJobDescription,
+                status: newJobStatus,
+                // posted_at could be set by backend or here if needed
+            };
+            const createdPosting = await apiClient<JobPosting>('/jobpostings', 'POST', payload);
+            setJobPostings(prev => [...prev, createdPosting]); // Update global state
+            setShowCreateForm(false);
+            setNewJobTitle(''); setNewJobDepartment(''); setNewJobDescription(''); setNewJobStatus('Draft');
+            setActionMessage(`Job posting "${createdPosting.title}" created successfully.`);
+        } catch (error) {
+            console.error("Error creating job posting:", error);
+            setActionMessage(`Error creating job posting: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+      const handleAiAssistJobDescription = async () => {
+        if (!newJobDescription && !newJobTitle) {
+            setActionMessage("Please provide at least a title or some description for AI assistance.");
+            return;
+        }
+        setIsLoading(true);
+        setActionMessage("AI is reviewing the job description...");
+        try {
+            const jobDetails = { title: newJobTitle, description: newJobDescription, department: newJobDepartment };
+            const response = await apiClient<{ analysis: string }>('/ai/analyze-job-description', 'POST', { jobDescription: jobDetails });
+            setActionMessage(`AI Feedback: ${response.analysis}`);
+            // Optionally, you could try to parse the feedback and suggest changes to newJobDescription
+            // For now, just displaying the feedback.
+        } catch (error) {
+            console.error("Error getting AI assistance for job description:", error);
+            setActionMessage(`AI assistance error: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-gray-800 flex items-center"><BriefcaseIcon className="w-7 h-7 mr-2 text-yellow-600"/>Job Postings</h2>
+            <button onClick={() => setShowCreateForm(!showCreateForm)} className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition">
+                {showCreateForm ? 'Cancel' : '+ New Posting'}
+            </button>
+          </div>
+
+          {showCreateForm && (
+            <form onSubmit={handleCreateJobPosting} className="mb-6 p-4 border border-yellow-200 bg-yellow-50 rounded-md space-y-3">
+              <h3 className="text-lg font-semibold text-yellow-700">Create New Job Posting</h3>
+              <input type="text" placeholder="Job Title*" value={newJobTitle} onChange={e => setNewJobTitle(e.target.value)} className="p-2 border rounded w-full" required />
+              <input type="text" placeholder="Department" value={newJobDepartment} onChange={e => setNewJobDepartment(e.target.value)} className="p-2 border rounded w-full" />
+              <textarea placeholder="Job Description" value={newJobDescription} onChange={e => setNewJobDescription(e.target.value)} rows={4} className="w-full p-2 border rounded"></textarea>
+              <select value={newJobStatus} onChange={e => setNewJobStatus(e.target.value as JobPosting['status'])} className="p-2 border rounded bg-white w-full">
+                <option value="Draft">Draft</option>
+                <option value="Open">Open</option>
+                <option value="Closed">Closed</option>
+              </select>
+              <div className="flex space-x-3">
+                <button type="submit" className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition flex items-center" disabled={isLoading}>
+                  {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-4 h-4 mr-1"/>} Create Posting
+                </button>
+                <button type="button" onClick={handleAiAssistJobDescription} className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition flex items-center" disabled={isLoading}>
+                  {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-4 h-4 mr-1"/>} AI Assist Description
+                </button>
+              </div>
+            </form>
+          )}
+
+          <h3 className="text-xl font-medium text-gray-700 mb-4">Current Postings</h3>
+          {isLoading && localJobPostings.length === 0 && <div className="text-center py-4"><LoadingSpinner /> Loading job postings...</div>}
+          {!isLoading && localJobPostings.length === 0 && <div className="text-center py-4 text-gray-500">No job postings found.</div>}
+
+          {localJobPostings.length > 0 && (
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted At</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {localJobPostings.map(j => (
+                  <tr key={j.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{j.title}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{j.department}</td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${j.status === 'Open' ? 'bg-green-100 text-green-800' : j.status === 'Closed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>{j.status}</span></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{j.posted_at ? new Date(j.posted_at).toLocaleDateString() : 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
+        </div>
+      );
+    };
 
   const PolicyCenterView: React.FC = () => {
-    const allPolicyText = policies.map(p => `Policy: ${p.title}\nCategory: ${p.category}\nSnippet: ${p.contentSnippet}`).join('\n\n');
-    return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-             <ChatbotInterface mode="policy" policyContext={allPolicyText} />
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-xl">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><DocumentTextIcon className="w-7 h-7 mr-2 text-red-600"/>Company Policies</h2>
-            <div className="space-y-4 max-h-[calc(100vh-16rem)] overflow-y-auto custom-scrollbar">
-                {policies.map(p => (
-                <div key={p.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                    <h3 className="font-semibold text-gray-700">{p.title}</h3>
-                    <p className="text-sm text-gray-500 mb-1">{p.category}</p>
-                    <p className="text-sm text-gray-600">{p.contentSnippet}</p>
+      const [localPolicies, setLocalPolicies] = useState<CompanyPolicy[]>(policies); // Use global or local state
+      const [showCreatePolicyForm, setShowCreatePolicyForm] = useState(false);
+      const [newPolicyTitle, setNewPolicyTitle] = useState('');
+      const [newPolicyCategory, setNewPolicyCategory] = useState('');
+      const [newPolicySnippet, setNewPolicySnippet] = useState('');
+      const [newPolicyFullContent, setNewPolicyFullContent] = useState('');
+
+
+      useEffect(() => {
+        const fetchPolicies = async () => {
+          if (!isAuthenticated) return;
+          setIsLoading(true);
+          try {
+            const data = await apiClient<CompanyPolicy[]>('/policies', 'GET');
+            setPolicies(data); // Update global state
+            setLocalPolicies(data);
+          } catch (error) {
+            console.error("Error fetching policies:", error);
+            setActionMessage(`Error fetching policies: ${(error as Error).message}`);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchPolicies();
+      }, [isAuthenticated]);
+
+      useEffect(() => { // Sync local state if global changes
+        setLocalPolicies(policies);
+      }, [policies]);
+
+      const handleCreatePolicy = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPolicyTitle || !newPolicyCategory) {
+            setActionMessage("Policy title and category are required.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const payload: Partial<CompanyPolicy> = {
+                title: newPolicyTitle,
+                category: newPolicyCategory,
+                content_snippet: newPolicySnippet,
+                full_content: newPolicyFullContent,
+            };
+            const createdPolicy = await apiClient<CompanyPolicy>('/policies', 'POST', payload);
+            setPolicies(prev => [...prev, createdPolicy]); // Update global
+            setShowCreatePolicyForm(false);
+            // Clear form
+            setNewPolicyTitle(''); setNewPolicyCategory(''); setNewPolicySnippet(''); setNewPolicyFullContent('');
+            setActionMessage(`Policy "${createdPolicy.title}" created.`);
+        } catch (error) {
+             console.error("Error creating policy:", error);
+            setActionMessage(`Error creating policy: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+
+      const allPolicyTextForChatbot = localPolicies.map(p => `Policy: ${p.title}
+Category: ${p.category}
+Content: ${p.full_content || p.content_snippet}`).join('
+
+---
+
+');
+
+      return (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+                 {/* ChatbotInterface will need its onSendMessage prop updated to use the backend AI */}
+                 <ChatbotInterface
+                    mode="policy"
+                    policyContext={allPolicyTextForChatbot}
+                    // The onSendMessage prop of ChatbotInterface needs to be updated
+                    // to call apiClient POST /api/ai/policy-query
+                 />
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow-xl">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-semibold text-gray-800 flex items-center"><DocumentTextIcon className="w-7 h-7 mr-2 text-red-600"/>Company Policies</h2>
+                    <button onClick={() => setShowCreatePolicyForm(!showCreatePolicyForm)} className="text-sm bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md">
+                        {showCreatePolicyForm ? 'Cancel' : '+ Add Policy'}
+                    </button>
                 </div>
-                ))}
+                {showCreatePolicyForm && (
+                     <form onSubmit={handleCreatePolicy} className="mb-4 p-3 border border-red-200 bg-red-50 rounded-md space-y-2">
+                        <h3 className="text-md font-semibold text-red-700">New Company Policy</h3>
+                        <input type="text" placeholder="Policy Title*" value={newPolicyTitle} onChange={e => setNewPolicyTitle(e.target.value)} className="p-2 border rounded w-full text-sm" required />
+                        <input type="text" placeholder="Category*" value={newPolicyCategory} onChange={e => setNewPolicyCategory(e.target.value)} className="p-2 border rounded w-full text-sm" required />
+                        <textarea placeholder="Content Snippet (preview)" value={newPolicySnippet} onChange={e => setNewPolicySnippet(e.target.value)} rows={2} className="w-full p-2 border rounded text-sm"></textarea>
+                        <textarea placeholder="Full Policy Content" value={newPolicyFullContent} onChange={e => setNewPolicyFullContent(e.target.value)} rows={4} className="w-full p-2 border rounded text-sm"></textarea>
+                        <button type="submit" className="bg-red-500 text-white px-3 py-1.5 rounded hover:bg-red-600 text-sm" disabled={isLoading}>
+                            {isLoading ? 'Saving...' : 'Save Policy'}
+                        </button>
+                    </form>
+                )}
+
+                {isLoading && localPolicies.length === 0 && <div className="text-center py-4"><LoadingSpinner /> Loading policies...</div>}
+                {!isLoading && localPolicies.length === 0 && <div className="text-center py-4 text-gray-500">No policies found.</div>}
+
+                <div className="space-y-4 max-h-[calc(100vh-20rem)] overflow-y-auto custom-scrollbar">
+                    {localPolicies.map(p => (
+                    <div key={p.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
+                        <h3 className="font-semibold text-gray-700">{p.title}</h3>
+                        <p className="text-sm text-gray-500 mb-1">{p.category}</p>
+                        <p className="text-sm text-gray-600">{p.content_snippet}</p>
+                        {/* Could add a button to view full_content if it's long */}
+                    </div>
+                    ))}
+                </div>
             </div>
         </div>
-    </div>
-   );
-  };
+       );
+    };
 
-  const OnboardingTrackerView: React.FC = () => (
-    <div className="bg-white p-6 rounded-lg shadow-xl">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><ClipboardDocumentListIcon className="w-7 h-7 mr-2 text-indigo-600"/>Onboarding Tracker</h2>
-       <div className="mb-6 p-4 border border-indigo-200 bg-indigo-50 rounded-md">
-        <h3 className="text-lg font-semibold text-indigo-700 mb-2">Automated Onboarding Workflow</h3>
-        <p className="text-sm text-indigo-600 mb-3">
-          AI can manage onboarding tasks, send reminders, and track progress.
-        </p>
-        <button 
-            onClick={() => handleSimulatedApiCall("New Hire Onboarding Sequence", "conceptual_workflow_engine", {newHireName: "Jane Doe"})}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center" disabled={isLoading}>
-             {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
-            Initiate Onboarding
-        </button>
-      </div>
-      <h3 className="text-xl font-medium text-gray-700 mb-4">Active Onboarding Tasks</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {onboardingItems.map(item => (
-              <tr key={item.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.task}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.assignee}</td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${item.status === 'Completed' ? 'bg-green-100 text-green-800' : 
-                          item.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                          item.status === 'Requires Attention' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'}`}>
-                        {item.status}
-                    </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.dueDate ? item.dueDate.toLocaleDateString() : 'N/A'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  const OnboardingTrackerView: React.FC = () => {
+      const [localOnboardingItems, setLocalOnboardingItems] = useState<OnboardingItem[]>(onboardingItems);
+      const [showCreateForm, setShowCreateForm] = useState(false);
+      const [newTask, setNewTask] = useState('');
+      const [newAssignee, setNewAssignee] = useState('');
+      const [newStatus, setNewStatus] = useState<'Pending' | 'In Progress' | 'Completed' | 'Requires Attention'>('Pending');
+      const [newDueDate, setNewDueDate] = useState('');
+      const [newRelatedCandidateId, setNewRelatedCandidateId] = useState<string | null>(null);
 
-  const EmailAutomationView: React.FC = () => (
-    <div className="bg-white p-6 rounded-lg shadow-xl">
-      <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><PaperAirplaneIcon className="w-7 h-7 mr-2 text-teal-600"/>Email Automation</h2>
-       <div className="mb-6 p-4 border border-teal-200 bg-teal-50 rounded-md">
-        <h3 className="text-lg font-semibold text-teal-700 mb-2">AI-Powered Email Campaigns</h3>
-        <p className="text-sm text-teal-600 mb-3">
-          Draft, personalize, and schedule emails for events, updates, and follow-ups.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-            <input type="text" placeholder="Campaign Name" className="p-2 border rounded"/>
-            <select className="p-2 border rounded bg-white">
-                <option>Welcome Email Series</option>
-                <option>Event Invitation</option>
-                <option>Policy Update Notification</option>
-            </select>
+
+      useEffect(() => {
+        const fetchItems = async () => {
+          if (!isAuthenticated) return;
+          setIsLoading(true);
+          try {
+            const data = await apiClient<OnboardingItem[]>('/onboardingitems', 'GET');
+            setOnboardingItems(data); // Update global
+            setLocalOnboardingItems(data);
+          } catch (error) {
+            setActionMessage(`Error fetching onboarding items: ${(error as Error).message}`);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchItems();
+      }, [isAuthenticated]);
+
+      useEffect(() => { setLocalOnboardingItems(onboardingItems); }, [onboardingItems]);
+
+      const handleCreateOnboardingItem = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTask || !newAssignee || !newStatus) {
+            setActionMessage("Task, Assignee, and Status are required.");
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const payload: Partial<OnboardingItem> = {
+                task: newTask, assignee: newAssignee, status: newStatus,
+                due_date: newDueDate ? new Date(newDueDate) : undefined,
+                related_candidate_id: newRelatedCandidateId || undefined,
+            };
+            const createdItem = await apiClient<OnboardingItem>('/onboardingitems', 'POST', payload);
+            setOnboardingItems(prev => [...prev, createdItem]); // Update global
+            setShowCreateForm(false);
+            setNewTask(''); setNewAssignee(''); setNewStatus('Pending'); setNewDueDate(''); setNewRelatedCandidateId(null);
+            setActionMessage('Onboarding item created.');
+        } catch (error) {
+            setActionMessage(`Error creating item: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+      const handleInitiateOnboardingSequence = async () => {
+        // This could create a set of predefined OnboardingItems or an AITask
+        setIsLoading(true);
+        setActionMessage("Initiating onboarding sequence as AI Task...");
+        try {
+            const aiTaskPayload = {
+                title: "Manage New Hire Onboarding Sequence for Jane Doe (Example)",
+                description: "Oversee all onboarding tasks, send reminders, and track progress for new hire Jane Doe.",
+                assigned_to: "Onboarding AI Assistant",
+                status: TaskStatus.PENDING, // Ensure TaskStatus is imported from types
+            };
+            await apiClient<AITask>('/aitasks', 'POST', aiTaskPayload);
+            setActionMessage("AI Task created to manage the onboarding sequence.");
+            // Optionally, fetch and display this new AI task if relevant
+        } catch (error) {
+            setActionMessage(`Error initiating sequence: ${(error as Error).message}`);
+        } finally {
+            setIsLoading(false);
+        }
+      };
+
+      return (
+        <div className="bg-white p-6 rounded-lg shadow-xl">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-gray-800 flex items-center"><ClipboardDocumentListIcon className="w-7 h-7 mr-2 text-indigo-600"/>Onboarding Tracker</h2>
+            <button onClick={() => setShowCreateForm(!showCreateForm)} className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-md">
+                {showCreateForm ? 'Cancel' : '+ Add Item'}
+            </button>
+          </div>
+
+          {showCreateForm && (
+             <form onSubmit={handleCreateOnboardingItem} className="mb-4 p-3 border border-indigo-200 bg-indigo-50 rounded-md space-y-2">
+                <h3 className="text-md font-semibold text-indigo-700">New Onboarding Item</h3>
+                <input type="text" placeholder="Task*" value={newTask} onChange={e => setNewTask(e.target.value)} className="p-2 border rounded w-full text-sm" required />
+                <input type="text" placeholder="Assignee*" value={newAssignee} onChange={e => setNewAssignee(e.target.value)} className="p-2 border rounded w-full text-sm" required />
+                <select value={newStatus} onChange={e => setNewStatus(e.target.value as OnboardingItem['status'])} className="p-2 border rounded bg-white w-full text-sm">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Requires Attention">Requires Attention</option>
+                </select>
+                <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} className="p-2 border rounded w-full text-sm" />
+                {/* Optional: Select existing candidate to link */}
+                {/* <select value={newRelatedCandidateId || ''} onChange={e => setNewRelatedCandidateId(e.target.value || null)} className="p-2 border rounded bg-white w-full text-sm">
+                    <option value="">Link to Candidate (Optional)</option>
+                    {candidates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select> */}
+                <button type="submit" className="bg-indigo-500 text-white px-3 py-1.5 rounded hover:bg-indigo-600 text-sm" disabled={isLoading}>
+                    {isLoading ? 'Saving...' : 'Save Item'}
+                </button>
+            </form>
+          )}
+
+          <div className="mb-6 p-4 border border-indigo-200 bg-indigo-50 rounded-md">
+            <h3 className="text-lg font-semibold text-indigo-700 mb-2">Automated Onboarding Workflow</h3>
+            <p className="text-sm text-indigo-600 mb-3">
+              AI can manage onboarding tasks, send reminders, and track progress.
+            </p>
+            <button
+                onClick={handleInitiateOnboardingSequence}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center" disabled={isLoading}>
+                 {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
+                Initiate Onboarding AI Task
+            </button>
+          </div>
+
+          <h3 className="text-xl font-medium text-gray-700 mb-4">Active Onboarding Tasks</h3>
+          {isLoading && localOnboardingItems.length === 0 && <div className="text-center py-4"><LoadingSpinner /> Loading items...</div>}
+          {!isLoading && localOnboardingItems.length === 0 && <div className="text-center py-4 text-gray-500">No onboarding items found.</div>}
+
+          {localOnboardingItems.length > 0 && (
+            <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignee</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {localOnboardingItems.map(item => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.task}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{item.assignee}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                            ${item.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                              item.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                              item.status === 'Requires Attention' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'}`}>
+                            {item.status}
+                        </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.due_date ? new Date(item.due_date).toLocaleDateString() : 'N/A'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          )}
         </div>
-        <textarea placeholder="Email Body (AI can help draft this)" rows={4} className="w-full p-2 border rounded mb-3"></textarea>
-        <button 
-            onClick={() => handleSimulatedApiCall("Email Campaign via Bravo API", BRAVO_API_PLACEHOLDER_URL, {campaignName: "Welcome Series"})}
-            className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition flex items-center" disabled={isLoading}>
-             {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
-            Schedule Email Campaign
-        </button>
-      </div>
-      <p className="text-gray-600">Placeholder for email campaign logs and analytics.</p>
-    </div>
-  );
+      );
+    };
 
-  const OfferManagementView: React.FC = () => (
+  const EmailAutomationView: React.FC = () => {
+        const [campaignName, setCampaignName] = useState('');
+        const [emailSeriesType, setEmailSeriesType] = useState('Welcome Email Series');
+        const [emailBodyDraft, setEmailBodyDraft] = useState('');
+
+        const handleScheduleEmailCampaign = async () => {
+            if (!campaignName || !emailBodyDraft) {
+                setActionMessage("Campaign name and email body draft are required.");
+                return;
+            }
+            setIsLoading(true);
+            setActionMessage("Scheduling email campaign as AI Task...");
+            try {
+                const aiTaskPayload = {
+                    title: `Email Campaign: ${campaignName}`,
+                    description: `Type: ${emailSeriesType}. Body Draft: ${emailBodyDraft.substring(0, 100)}...`,
+                    assigned_to: "Email Automation AI",
+                    status: TaskStatus.PENDING,
+                };
+                await apiClient<AITask>('/aitasks', 'POST', aiTaskPayload);
+                setActionMessage(`AI Task created to manage email campaign: ${campaignName}.`);
+                setCampaignName(''); setEmailSeriesType('Welcome Email Series'); setEmailBodyDraft('');
+            } catch (error) {
+                setActionMessage(`Error scheduling campaign: ${(error as Error).message}`);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        const handleAiDraftEmailBody = async () => {
+            setIsLoading(true);
+            setActionMessage("AI is drafting email body...");
+            try {
+                const context = { campaignName, seriesType: emailSeriesType };
+                const action = "Draft email body for this campaign type";
+                const response = await apiClient<{ draftedCommunication: string }>('/ai/draft-communication', 'POST', { context, action });
+                setEmailBodyDraft(response.draftedCommunication);
+                setActionMessage("AI drafted an email body. Review and modify as needed.");
+            } catch (error) {
+                setActionMessage(`AI drafting error: ${(error as Error).message}`);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+
+        return (
+            <div className="bg-white p-6 rounded-lg shadow-xl">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><PaperAirplaneIcon className="w-7 h-7 mr-2 text-teal-600"/>Email Automation</h2>
+               <div className="mb-6 p-4 border border-teal-200 bg-teal-50 rounded-md">
+                <h3 className="text-lg font-semibold text-teal-700 mb-2">AI-Powered Email Campaigns</h3>
+                <p className="text-sm text-teal-600 mb-3">
+                  Draft, personalize, and schedule emails for events, updates, and follow-ups.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                    <input type="text" placeholder="Campaign Name" value={campaignName} onChange={e => setCampaignName(e.target.value)} className="p-2 border rounded"/>
+                    <select value={emailSeriesType} onChange={e => setEmailSeriesType(e.target.value)} className="p-2 border rounded bg-white">
+                        <option>Welcome Email Series</option>
+                        <option>Event Invitation</option>
+                        <option>Policy Update Notification</option>
+                    </select>
+                </div>
+                <textarea placeholder="Email Body (AI can help draft this)" value={emailBodyDraft} onChange={e => setEmailBodyDraft(e.target.value)} rows={4} className="w-full p-2 border rounded mb-3"></textarea>
+                <div className="flex space-x-3">
+                    <button
+                        onClick={handleScheduleEmailCampaign}
+                        className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition flex items-center" disabled={isLoading || !campaignName || !emailBodyDraft}>
+                         {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
+                        Schedule Email Campaign Task
+                    </button>
+                     <button
+                        onClick={handleAiDraftEmailBody}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition flex items-center" disabled={isLoading}>
+                         {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
+                        AI Draft Body
+                    </button>
+                </div>
+              </div>
+              <p className="text-gray-600">Placeholder for email campaign logs and analytics (could be AITask list filtered by 'Email Automation AI').</p>
+            </div>
+        );
+    };
+
+  const OfferManagementView: React.FC = () => {
+        const [candidateName, setCandidateName] = useState('');
+        const [jobTitle, setJobTitle] = useState('');
+        const [salary, setSalary] = useState('');
+        const [additionalTerms, setAdditionalTerms] = useState('');
+
+        const handlePrepareAndSendOffer = async () => {
+            if (!candidateName || !jobTitle || !salary) {
+                setActionMessage("Candidate name, job title, and salary are required.");
+                return;
+            }
+            setIsLoading(true);
+            setActionMessage("Preparing offer and creating AI Task...");
+            try {
+                // Step 1: (Optional) AI review of offer details
+                const offerDetails = { candidateName, jobTitle, salary, additionalTerms };
+                const analysisResponse = await apiClient<{ analysis: string }>('/ai/analyze-offer-letter', 'POST', { offerDetails });
+                setActionMessage(`AI Offer Review: ${analysisResponse.analysis}.
+Now creating task for dispatch...`);
+
+                // Step 2: Create an AITask to "send" the offer (since DocuSign isn't really integrated)
+                const aiTaskPayload = {
+                    title: `Send Offer Letter to ${candidateName} for ${jobTitle}`,
+                    description: `Offer Details: Salary ${salary}. ${additionalTerms ? 'Additional Terms: ' + additionalTerms : ''}. AI Review: ${analysisResponse.analysis}`,
+                    assigned_to: "Offer Management AI",
+                    status: TaskStatus.PENDING,
+                };
+                await apiClient<AITask>('/aitasks', 'POST', aiTaskPayload);
+                setActionMessage(prev => prev + `
+AI Task created to manage offer dispatch to ${candidateName}.`);
+                // Clear form
+                setCandidateName(''); setJobTitle(''); setSalary(''); setAdditionalTerms('');
+
+            } catch (error) {
+                setActionMessage(`Error preparing/sending offer: ${(error as Error).message}`);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        return (
+             <div className="bg-white p-6 rounded-lg shadow-xl">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><DocumentCheckIcon className="w-7 h-7 mr-2 text-purple-600"/>Offer Letter Management</h2>
+               <div className="mb-6 p-4 border border-purple-200 bg-purple-50 rounded-md">
+                <h3 className="text-lg font-semibold text-purple-700 mb-2">Generate & Send Offer Letters (AI Assisted)</h3>
+                <p className="text-sm text-purple-600 mb-3">
+                  AI helps review offer letters, then an AI task is created to simulate dispatch and track acceptance.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <input type="text" placeholder="Candidate Name" value={candidateName} onChange={e => setCandidateName(e.target.value)} className="p-2 border rounded"/>
+                    <input type="text" placeholder="Job Title" value={jobTitle} onChange={e => setJobTitle(e.target.value)} className="p-2 border rounded"/>
+                    <input type="text" placeholder="Salary" value={salary} onChange={e => setSalary(e.target.value)} className="p-2 border rounded"/>
+                </div>
+                <textarea placeholder="Additional Terms (AI can help draft this)" value={additionalTerms} onChange={e => setAdditionalTerms(e.target.value)} rows={3} className="w-full p-2 border rounded mb-3"></textarea>
+                <button
+                    onClick={handlePrepareAndSendOffer}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition flex items-center" disabled={isLoading || !candidateName || !jobTitle || !salary}>
+                     {isLoading ? <LoadingSpinner size={5} /> : <SparklesIcon className="w-5 h-5 mr-2"/>}
+                    Prepare & Create Send Task
+                </button>
+              </div>
+              <p className="text-gray-600">Placeholder for tracking offer letter statuses (could be AITask list filtered by 'Offer Management AI').</p>
+            </div>
+        );
+    };
      <div className="bg-white p-6 rounded-lg shadow-xl">
       <h2 className="text-2xl font-semibold text-gray-800 mb-6 flex items-center"><DocumentCheckIcon className="w-7 h-7 mr-2 text-purple-600"/>Offer Letter Management</h2>
        <div className="mb-6 p-4 border border-purple-200 bg-purple-50 rounded-md">
@@ -451,7 +1035,7 @@ const App: React.FC = () => {
   );
 
   // If not authenticated, show LoginView
-  if (!isAuthenticated || !currentUser) { // Add !currentUser check for safety
+  if (!isAuthenticated || !currentUser) {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 

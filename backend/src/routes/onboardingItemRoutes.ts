@@ -8,16 +8,20 @@ import {
   deleteOnboardingItem
 } from '../controllers/onboardingItemController';
 import { protect } from '../middleware/authMiddleware';
+import { checkSubscription } from '../middleware/subscriptionMiddleware';
 
 const router = express.Router();
+router.use(protect);
+
+const proTiers: ('Pro' | 'Enterprise' | 'Trial')[] = ['Pro', 'Enterprise', 'Trial'];
 
 router.route('/')
-  .get(protect, getOnboardingItems)
-  .post(protect, createOnboardingItem);
+  .get(checkSubscription(proTiers), getOnboardingItems)
+  .post(checkSubscription(proTiers), createOnboardingItem);
 
 router.route('/:id')
-  .get(protect, getOnboardingItemById)
-  .put(protect, updateOnboardingItem)
-  .delete(protect, deleteOnboardingItem);
+  .get(checkSubscription(proTiers), getOnboardingItemById)
+  .put(checkSubscription(proTiers), updateOnboardingItem)
+  .delete(checkSubscription(proTiers), deleteOnboardingItem);
 
 export default router;
