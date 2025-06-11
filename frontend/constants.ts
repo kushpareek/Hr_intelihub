@@ -2,22 +2,10 @@ import { AITask, TaskStatus, Candidate, JobPosting, CompanyPolicy, OnboardingIte
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
 
-export const MOCK_USER_CREDENTIALS = {
-  email: 'hr@example.com',
-  password: 'password',
-  name: 'HR Admin',
-  tier: 'Pro' as User['subscriptionTier'],
-};
+// API Base URL from environment variable, with a fallback for development
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
-export const MOCK_ADMIN_CREDENTIALS = {
-  email: 'admin@example.com',
-  password: 'adminpassword',
-  name: 'Platform Admin',
-  tier: 'Enterprise' as User['subscriptionTier'], // Admins might have full access conceptually
-  isAdmin: true,
-};
-
-
+/*
 export const MOCK_AI_TASKS: AITask[] = [
   { id: 'task1', title: 'Send Welcome Emails Q3 New Hires', description: 'Draft and send personalized welcome emails to all new hires starting in Q3.', assignedTo: 'Email Automation Bot', status: TaskStatus.IN_PROGRESS, createdAt: new Date(2024, 6, 1), updatedAt: new Date() },
   { id: 'task2', title: 'Source Senior Frontend Engineers', description: 'Identify 10 potential candidates for Senior Frontend Engineer role from LinkedIn and GitHub.', assignedTo: 'Candidate Sourcing AI', status: TaskStatus.PENDING, createdAt: new Date(2024, 6, 10), updatedAt: new Date() },
@@ -115,3 +103,4 @@ export const MOCK_SUPPORT_QUERIES: SupportQuery[] = [
   { id: 'query3', clientId: 'client4', clientName: 'StartupX Inc.', subject: 'Trial Extension Request', description: 'Our trial is ending soon, can we get an extension to evaluate the Enterprise features?', submittedDate: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000), lastUpdatedDate: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000), status: 'Open', priority: 'Medium' },
   { id: 'query4', clientId: 'client3', clientName: 'Alpha Corp', subject: 'Feedback on Email Summarization Accuracy', description: 'The email summarization for complex technical emails needs improvement. We have some examples.', submittedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), lastUpdatedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), status: 'Resolved', assignedTo: 'AI Model Feedback Team', priority: 'Low' },
 ];
+*/

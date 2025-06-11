@@ -1,126 +1,140 @@
+// frontend/components/LoginView.tsx
 import React, { useState } from 'react';
-import { LockClosedIcon, SparklesIcon, LoadingSpinner } from './common/IconComponents';
-import { MOCK_USER_CREDENTIALS, MOCK_ADMIN_CREDENTIALS } from '../constants';
-import { SubscriptionTier } from '../types';
+import { SparklesIcon, LoadingSpinner } from './common/IconComponents';
+import { API_BASE_URL } from '../constants'; // Import API_BASE_URL
+import { User, SubscriptionTier } from '../types'; // Assuming User and SubscriptionTier are defined
 
 interface LoginViewProps {
-  onLoginSuccess: (email: string, name?: string, tier?: SubscriptionTier, isAdmin?: boolean) => void;
+  onLoginSuccess: (user: User, token: string) => void; // Pass user and token
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  const [name, setName] = useState<string>(''); // For registration
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email === MOCK_ADMIN_CREDENTIALS.email && password === MOCK_ADMIN_CREDENTIALS.password) {
-        onLoginSuccess(
-            MOCK_ADMIN_CREDENTIALS.email, 
-            MOCK_ADMIN_CREDENTIALS.name, 
-            MOCK_ADMIN_CREDENTIALS.tier, 
-            true // isAdmin
-        );
-      } else if (email === MOCK_USER_CREDENTIALS.email && password === MOCK_USER_CREDENTIALS.password) {
-        onLoginSuccess(
-            MOCK_USER_CREDENTIALS.email, 
-            MOCK_USER_CREDENTIALS.name, 
-            MOCK_USER_CREDENTIALS.tier, 
-            false // isNotAdmin
-        );
-      } else if (email && password) { // Allow any other login for demo if not matching specific mocks
-         onLoginSuccess(email, "Demo User", "Trial", false);
+    const url = isRegistering ? `${API_BASE_URL}/auth/register` : `${API_BASE_URL}/auth/login`;
+    const payload = isRegistering
+      ? { name, email, password }
+      : { email, password };
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
-      else {
-        setError('Invalid email or password. Try "hr@example.com"/"password" or "admin@example.com"/"adminpassword".');
+
+      if (data.user && data.token) {
+        onLoginSuccess(data.user as User, data.token);
+      } else {
+        // Should not happen if backend is correct
+        throw new Error('Login failed: No user or token in response.');
       }
+
+    } catch (err: any) {
+      console.error(`Error during ${isRegistering ? 'registration' : 'login'}:`, err);
+      setError(err.message || `An error occurred during ${isRegistering ? 'registration' : 'login'}.`);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
-      <div className="max-w-md w-full bg-white shadow-xl rounded-xl p-8 md:p-10">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-700 flex flex-col justify-center items-center p-4">
+      <div className="bg-white p-8 md:p-12 rounded-xl shadow-2xl w-full max-w-md">
         <div className="text-center mb-8">
           <SparklesIcon className="w-16 h-16 mx-auto text-blue-600 mb-3" />
           <h1 className="text-3xl font-bold text-gray-800">HR IntelliHub</h1>
-          <p className="text-gray-600 mt-1">Welcome! Please sign in to continue.</p>
+          <p className="text-gray-500 mt-1">{isRegistering ? 'Create your account' : 'Sign in to continue'}</p>
         </div>
 
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email address
-            </label>
-            <div className="mt-1">
+          {isRegistering && (
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                type="text"
+                name="name"
+                id="name"
+                className="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="you@example.com"
               />
             </div>
+          )}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email address</label>
+            <input
+              type="email"
+              name="email"
+              id="email"
+              autoComplete="email"
+              className="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <div className="mt-1">
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="••••••••"
-              />
-            </div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+            <input
+              type="password"
+              name="password"
+              id="password"
+              autoComplete={isRegistering ? "new-password" : "current-password"}
+              className="mt-1 block w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
           </div>
-
-          {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded-md">{error}</p>}
 
           <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70"
+              className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
             >
-              {isLoading ? (
-                <LoadingSpinner size={5} />
-              ) : (
-                <>
-                  <LockClosedIcon className="w-5 h-5 mr-2" />
-                  Sign in
-                </>
-              )}
+              {isLoading && <LoadingSpinner className="mr-2" size={5} />}
+              {isRegistering ? 'Register' : 'Sign In'}
             </button>
           </div>
         </form>
-        <p className="mt-6 text-center text-xs text-gray-500">
-            Demo Users: <br/>
-            Regular: <code className="bg-gray-200 px-1 rounded">hr@example.com</code> / <code className="bg-gray-200 px-1 rounded">password</code><br/>
-            Admin: <code className="bg-gray-200 px-1 rounded">admin@example.com</code> / <code className="bg-gray-200 px-1 rounded">adminpassword</code> <br/>
-            (Or any other non-empty credentials for a trial user)
-        </p>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => {setIsRegistering(!isRegistering); setError(null);}}
+            className="font-medium text-blue-600 hover:text-blue-500 text-sm"
+          >
+            {isRegistering ? 'Already have an account? Sign In' : "Don't have an account? Register"}
+          </button>
+        </div>
       </div>
-       <footer className="mt-8 text-center text-sm text-gray-500">
-          &copy; {new Date().getFullYear()} HR IntelliHub. AI-Powered HR Solutions.
-        </footer>
+       <p className="text-center text-sm text-gray-400 mt-8">&copy; {new Date().getFullYear()} HR IntelliHub. All rights reserved.</p>
     </div>
   );
 };
