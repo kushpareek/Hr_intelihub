@@ -6,11 +6,12 @@ import { query } from '../config/db';
 // @desc    Get all candidates for the logged-in user
 // @route   GET /api/candidates
 // @access  Private
-export const getCandidates = async (req: AuthenticatedRequest, res: Response) => {
+export const getCandidates = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const result = await query('SELECT * FROM candidates WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     res.status(200).json(result.rows);
@@ -23,17 +24,19 @@ export const getCandidates = async (req: AuthenticatedRequest, res: Response) =>
 // @desc    Get a single candidate by ID
 // @route   GET /api/candidates/:id
 // @access  Private
-export const getCandidateById = async (req: AuthenticatedRequest, res: Response) => {
+export const getCandidateById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const candidateId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('SELECT * FROM candidates WHERE id = $1 AND user_id = $2', [candidateId, userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Candidate not found or not authorized' });
+      res.status(404).json({ message: 'Candidate not found or not authorized' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -45,16 +48,18 @@ export const getCandidateById = async (req: AuthenticatedRequest, res: Response)
 // @desc    Create a new candidate
 // @route   POST /api/candidates
 // @access  Private
-export const createCandidate = async (req: AuthenticatedRequest, res: Response) => {
+export const createCandidate = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const { name, email, platform, role, status } = req.body;
 
     if (!name || !status) {
-      return res.status(400).json({ message: 'Name and status are required fields' });
+      res.status(400).json({ message: 'Name and status are required fields' });
+      return;
     }
 
     const result = await query(
@@ -71,12 +76,13 @@ export const createCandidate = async (req: AuthenticatedRequest, res: Response) 
 // @desc    Update an existing candidate
 // @route   PUT /api/candidates/:id
 // @access  Private
-export const updateCandidate = async (req: AuthenticatedRequest, res: Response) => {
+export const updateCandidate = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const candidateId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const { name, email, platform, role, status } = req.body;
@@ -84,7 +90,8 @@ export const updateCandidate = async (req: AuthenticatedRequest, res: Response) 
     // Check if candidate exists and belongs to the user
     const existingCandidate = await query('SELECT * FROM candidates WHERE id = $1 AND user_id = $2', [candidateId, userId]);
     if (existingCandidate.rows.length === 0) {
-      return res.status(404).json({ message: 'Candidate not found or not authorized' });
+      res.status(404).json({ message: 'Candidate not found or not authorized' });
+      return;
     }
 
     // Construct update query based on provided fields
@@ -96,7 +103,8 @@ export const updateCandidate = async (req: AuthenticatedRequest, res: Response) 
     if (status !== undefined) fieldsToUpdate.status = status;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
 
     fieldsToUpdate.updated_at = new Date(); // Manually set updated_at, though trigger should handle it
@@ -119,24 +127,27 @@ export const updateCandidate = async (req: AuthenticatedRequest, res: Response) 
 // @desc    Delete a candidate
 // @route   DELETE /api/candidates/:id
 // @access  Private
-export const deleteCandidate = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteCandidate = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const candidateId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('DELETE FROM candidates WHERE id = $1 AND user_id = $2 RETURNING *', [candidateId, userId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Candidate not found or not authorized' });
+      res.status(404).json({ message: 'Candidate not found or not authorized' });
+      return;
     }
     res.status(200).json({ message: 'Candidate deleted successfully' });
   } catch (error) {
     console.error('Error deleting candidate:', error);
     // Specific check for foreign key violation if a candidate is linked elsewhere (e.g. onboarding_items)
     if ((error as any).code === '23503') { // PostgreSQL foreign key violation error code
-         return res.status(400).json({ message: 'Cannot delete candidate. They are referenced in other records (e.g., onboarding or offboarding). Please remove those references first.' });
+      res.status(400).json({ message: 'Cannot delete candidate. They are referenced in other records (e.g., onboarding or offboarding). Please remove those references first.' });
+      return;
     }
     res.status(500).json({ message: 'Server error deleting candidate' });
   }

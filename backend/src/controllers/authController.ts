@@ -1,32 +1,31 @@
 // backend/src/controllers/authController.ts
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret } from 'jsonwebtoken'; // Import Secret
 import { query } from '../config/db'; // Assuming db.ts exports a query function
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+// const JWT_SECRET = process.env.JWT_SECRET; // Will access directly
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h'; // Keep for expiresIn if needed, or use '1d'
 
-if (!JWT_SECRET) {
-  console.error("FATAL ERROR: JWT_SECRET is not defined for authController.");
-  process.exit(1);
-}
+// Removed the global JWT_SECRET check, will check within functions before use
 
 export const registerUser = async (req: Request, res: Response) => {
   const { name, email, password, isAdmin } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Please provide email and password' });
+    res.status(400).json({ message: 'Please provide email and password' });
+    return;
   }
 
   try {
     // Check if user exists
     const userExists = await query('SELECT * FROM users WHERE email = $1', [email]);
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ message: 'User already exists' });
+      res.status(400).json({ message: 'User already exists' });
+      return;
     }
 
     // Hash password
@@ -41,11 +40,19 @@ export const registerUser = async (req: Request, res: Response) => {
 
     const newUser = newUserResult.rows[0];
 
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) { // Check if it's undefined or empty
+        console.error('JWT_SECRET is not defined or is empty in environment variables.');
+        res.status(500).json({ message: 'Internal server error - JWT configuration issue.' });
+        return;
+    }
+
     // Generate token
     const token = jwt.sign(
-        { userId: newUser.id, email: newUser.email, isAdmin: newUser.is_admin, subscriptionTier: newUser.subscription_tier },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
+        { id: newUser.id, isAdmin: newUser.is_admin },
+        secret, // Use the validated environment variable
+        { expiresIn: '1d' }
     );
 
     res.status(201).json({
@@ -70,14 +77,16 @@ export const loginUser = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Please provide email and password' });
+    res.status(400).json({ message: 'Please provide email and password' });
+    return;
   }
 
   try {
     // Check if user exists
     const userResult = await query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
-      return res.status(401).json({ message: 'Invalid credentials (email not found)' });
+      res.status(401).json({ message: 'Invalid credentials (email not found)' });
+      return;
     }
 
     const user = userResult.rows[0];
@@ -85,14 +94,23 @@ export const loginUser = async (req: Request, res: Response) => {
     // Compare password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials (password mismatch)' });
+      res.status(401).json({ message: 'Invalid credentials (password mismatch)' });
+      return;
+    }
+
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) { // Check if it's undefined or empty
+        console.error('JWT_SECRET is not defined or is empty in environment variables.');
+        res.status(500).json({ message: 'Internal server error - JWT configuration issue.' });
+        return;
     }
 
     // Generate token
     const token = jwt.sign(
-        { userId: user.id, email: user.email, isAdmin: user.is_admin, subscriptionTier: user.subscription_tier },
-        JWT_SECRET,
-        { expiresIn: JWT_EXPIRES_IN }
+        { id: user.id, isAdmin: user.is_admin },
+        secret, // Use the validated environment variable
+        { expiresIn: '1d' }
     );
 
     res.status(200).json({

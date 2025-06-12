@@ -1,7 +1,7 @@
 // frontend/components/LoginView.tsx
 import React, { useState } from 'react';
 import { SparklesIcon, LoadingSpinner } from './common/IconComponents';
-import { API_BASE_URL } from '../constants'; // Import API_BASE_URL
+import { apiClient } from '../services/api'; // Import apiClient
 import { User, SubscriptionTier } from '../types'; // Assuming User and SubscriptionTier are defined
 
 interface LoginViewProps {
@@ -21,28 +21,27 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setIsLoading(true);
     setError(null);
 
-    const url = isRegistering ? `${API_BASE_URL}/auth/register` : `${API_BASE_URL}/auth/login`;
+    // const url = isRegistering ? `${API_BASE_URL}/auth/register` : `${API_BASE_URL}/auth/login`; // Remove this
+    const endpoint = isRegistering ? '/auth/register' : '/auth/login';
     const payload = isRegistering
       ? { name, email, password }
       : { email, password };
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      // Replace fetch with apiClient
+      const data = await apiClient<{ user: User; token: string; }>(
+        endpoint,
+        'POST',
+        payload,
+        { useAuth: false } // Indicate that auth token is not needed for this request
+      );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
-      }
-
+      // data is already parsed JSON
       if (data.user && data.token) {
-        onLoginSuccess(data.user as User, data.token);
+        onLoginSuccess(data.user, data.token); // No need to cast data.user if apiClient is typed
       } else {
-        // Should not happen if backend is correct
+        // This case should ideally be covered by apiClient's error handling if the response shape is wrong,
+        // or by backend ensuring consistent responses.
         throw new Error('Login failed: No user or token in response.');
       }
 

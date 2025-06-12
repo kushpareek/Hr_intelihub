@@ -9,11 +9,13 @@ export const checkSubscription = (allowedTiers: SubscriptionTier[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
 
     if (!req.user || req.user.subscriptionTier === undefined) {
-      return res.status(401).json({ message: 'Not authorized, user subscription information is missing.' });
+      res.status(401).json({ message: 'Not authorized, user subscription information is missing.' });
+      return;
     }
 
     if (req.user.isAdmin) { // Admins bypass subscription checks
-        return next();
+      next();
+      return;
     }
 
     const userTier = req.user.subscriptionTier;
@@ -26,6 +28,7 @@ export const checkSubscription = (allowedTiers: SubscriptionTier[]) => {
         requiredTiers: allowedTiers,
         currentTier: userTier
       });
+      return; // Explicitly return
     }
   };
 };

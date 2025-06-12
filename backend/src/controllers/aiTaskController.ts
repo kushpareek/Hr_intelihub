@@ -10,7 +10,8 @@ export const getAITasks = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const result = await query('SELECT * FROM ai_tasks WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     res.status(200).json(result.rows);
@@ -28,12 +29,14 @@ export const getAITaskById = async (req: AuthenticatedRequest, res: Response) =>
     const userId = req.user?.id;
     const taskId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('SELECT * FROM ai_tasks WHERE id = $1 AND user_id = $2', [taskId, userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'AI task not found or not authorized' });
+      res.status(404).json({ message: 'AI task not found or not authorized' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -49,12 +52,14 @@ export const createAITask = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const { title, description, assigned_to, status } = req.body;
 
     if (!title || !status || !assigned_to) {
-      return res.status(400).json({ message: 'Title, assigned_to, and status are required fields' });
+      res.status(400).json({ message: 'Title, assigned_to, and status are required fields' });
+      return;
     }
 
     const result = await query(
@@ -76,14 +81,16 @@ export const updateAITask = async (req: AuthenticatedRequest, res: Response) => 
     const userId = req.user?.id;
     const taskId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const { title, description, assigned_to, status } = req.body;
 
     const existingTask = await query('SELECT * FROM ai_tasks WHERE id = $1 AND user_id = $2', [taskId, userId]);
     if (existingTask.rows.length === 0) {
-      return res.status(404).json({ message: 'AI task not found or not authorized' });
+      res.status(404).json({ message: 'AI task not found or not authorized' });
+      return;
     }
 
     const fieldsToUpdate: any = {};
@@ -93,7 +100,8 @@ export const updateAITask = async (req: AuthenticatedRequest, res: Response) => 
     if (status !== undefined) fieldsToUpdate.status = status;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
     // fieldsToUpdate.updated_at = new Date(); // Trigger should handle this
 
@@ -120,12 +128,14 @@ export const deleteAITask = async (req: AuthenticatedRequest, res: Response) => 
     const userId = req.user?.id;
     const taskId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('DELETE FROM ai_tasks WHERE id = $1 AND user_id = $2 RETURNING *', [taskId, userId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'AI task not found or not authorized' });
+      res.status(404).json({ message: 'AI task not found or not authorized' });
+      return;
     }
     res.status(200).json({ message: 'AI task deleted successfully' });
   } catch (error) {

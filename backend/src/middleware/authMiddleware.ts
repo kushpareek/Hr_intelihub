@@ -51,21 +51,26 @@ export const protect = async (req: AuthenticatedRequest, res: Response, next: Ne
       // Log the actual error for debugging, but send a generic message to client
       if (error instanceof jwt.JsonWebTokenError) {
          res.status(401).json({ message: 'Not authorized, token invalid.' });
+         return;
       } else {
          res.status(401).json({ message: 'Not authorized, token failed.' });
+         return;
       }
     }
   }
 
   if (!token) {
     res.status(401).json({ message: 'Not authorized, no token' });
+    return;
   }
 };
 
 export const admin = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (req.user && req.user.isAdmin) {
         next();
+        return;
     } else {
         res.status(403).json({ message: 'Not authorized as an admin' });
+        return;
     }
 };
