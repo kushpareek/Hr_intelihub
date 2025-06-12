@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react'; // Added useEffect
 import { OffboardingCase, OffboardingCaseType, OffboardingStatus } from '../types';
-import { MOCK_OFFBOARDING_CASES } from '../constants';
+// import { MOCK_OFFBOARDING_CASES } from '../constants'; // Removed mock import
 import { UserMinusIcon, SparklesIcon, LoadingSpinner, DocumentTextIcon, ClipboardDocumentListIcon } from './common/IconComponents';
-import { analyzeTextWithSystemInstruction } from '../services/geminiService';
-
+// import { analyzeTextWithSystemInstruction } from '../services/geminiService'; // Will be replaced by apiClient
+import { apiClient } from '../services/api'; // Added apiClient
 
 const StatusBadge: React.FC<{ status: OffboardingStatus }> = ({ status }) => {
   let colorClasses = 'bg-gray-100 text-gray-800';
@@ -26,11 +26,27 @@ const CaseTypeBadge: React.FC<{ type: OffboardingCaseType }> = ({ type }) => {
 
 
 const OffboardingManagementView: React.FC = () => {
-  const [offboardingCases, setOffboardingCases] = useState<OffboardingCase[]>(MOCK_OFFBOARDING_CASES);
-  const [isLoading, setIsLoading] = useState(false);
+  const [offboardingCases, setOffboardingCases] = useState<OffboardingCase[]>([]); // Initialize with empty array
+  const [isLoading, setIsLoading] = useState(false); // isLoading will be used for data fetching and AI actions
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [showNewCaseForm, setShowNewCaseForm] = useState(false);
   const [newCaseData, setNewCaseData] = useState<Partial<OffboardingCase>>({ type: 'Resignation', status: 'Initiated', initiatedDate: new Date() });
+
+  useEffect(() => {
+    const fetchOffboardingCases = async () => {
+      setIsLoading(true);
+      try {
+        const data = await apiClient<OffboardingCase[]>('/offboardingcases', 'GET');
+        setOffboardingCases(data);
+      } catch (error) {
+        console.error('Error fetching offboarding cases:', error);
+        setActionMessage(`Error fetching offboarding cases: ${(error as Error).message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOffboardingCases();
+  }, []);
 
   const handleAiAssist = useCallback(async (caseItem: OffboardingCase, action: 'draftPIP' | 'draftAcknowledgement' | 'reviewChecklist') => {
     setIsLoading(true);
@@ -54,13 +70,17 @@ const OffboardingManagementView: React.FC = () => {
     }
 
     try {
-        const aiResponse = await analyzeTextWithSystemInstruction(prompt, systemInstruction);
+        // Replace direct geminiService call with apiClient to backend
+        const response = await apiClient<{ analysis?: string; draftedCommunication?: string; answer?: string }>('/ai/analyze-text', 'POST', {
+            text: prompt, // Or a more structured payload if backend expects it
+            instruction: systemInstruction
+        });
+        const aiResponse = response.analysis || response.draftedCommunication || response.answer || "AI analysis complete.";
         setActionMessage(`AI Assistance for ${caseItem.employeeName} (${action}):\n${aiResponse}`);
-        // In a real app, you might open a modal with this text or pre-fill a form.
         console.log(`AI Response for ${action} on ${caseItem.employeeName}:`, aiResponse);
     } catch (error) {
         console.error("AI assistance error:", error);
-        setActionMessage(`Error getting AI assistance for ${caseItem.employeeName}.`);
+        setActionMessage(`Error getting AI assistance for ${caseItem.employeeName}: ${(error as Error).message}`);
     } finally {
         setIsLoading(false);
         setTimeout(() => setActionMessage(null), 10000); // Clear message after 10s
@@ -77,42 +97,39 @@ const OffboardingManagementView: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value ? new Date(value) : undefined }));
   };
 
-  const handleAddNewCase = (e: React.FormEvent) => {
+  const handleAddNewCase = async (e: React.FormEvent) => { // Made async
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call & AI analysis if needed
-    const newId = `offboard${Date.now()}`;
-    const newCase: OffboardingCase = {
-      ...newCaseData,
-      id: newId,
-      employeeName: newCaseData.employeeName || "Unknown Employee",
-      employeeId: newCaseData.employeeId || `E${Date.now().toString().slice(-4)}`,
-      initiatedDate: newCaseData.initiatedDate || new Date(),
-      status: newCaseData.status || 'Initiated',
-      type: newCaseData.type || 'Resignation',
-    };
-    console.log("Adding new offboarding case (simulated):", newCase);
-    
-    // Simulate Gemini analyzing the new case details
-    analyzeTextWithSystemInstruction(
-      `New offboarding case initiated: ${JSON.stringify(newCase)}`,
-      "You are an HR AI. Review this new offboarding case. Provide a very brief (1-2 sentence) comment or flag if anything seems unusual (e.g., very short notice for resignation if provided, missing critical info for termination)."
-    ).then(aiComment => {
-      setActionMessage(`New case for ${newCase.employeeName} added. AI Comment: ${aiComment}`);
-      setOffboardingCases(prev => [newCase, ...prev]); // Add to top
-      setShowNewCaseForm(false);
-      setNewCaseData({ type: 'Resignation', status: 'Initiated', initiatedDate: new Date() });
-      setIsLoading(false);
-      setTimeout(() => setActionMessage(null), 7000);
-    }).catch(err => {
-      setActionMessage(`New case for ${newCase.employeeName} added, but AI comment failed.`);
-      console.error("AI comment failed for new case:", err);
-      setOffboardingCases(prev => [newCase, ...prev]);
-      setShowNewCaseForm(false);
-      setNewCaseData({ type: 'Resignation', status: 'Initiated', initiatedDate: new Date() });
-      setIsLoading(false);
-      setTimeout(() => setActionMessage(null), 7000);
-    });
+    // Replace simulated API call with actual apiClient call
+    try {
+        const payload: Partial<OffboardingCase> = {
+            ...newCaseData,
+            employeeName: newCaseData.employeeName || "Unknown Employee",
+            // employeeId will be set by backend if not provided or based on logic
+            initiatedDate: newCaseData.initiatedDate || new Date(),
+            status: newCaseData.status || 'Initiated',
+            type: newCaseData.type || 'Resignation',
+        };
+        const createdCase = await apiClient<OffboardingCase>('/offboardingcases', 'POST', payload);
+
+        // Optional: AI comment on the newly created case (simulated or actual)
+        const aiCommentResponse = await apiClient<{ analysis?: string }>('/ai/analyze-text', 'POST', {
+            text: `New offboarding case initiated: ${JSON.stringify(createdCase)}`,
+            instruction: "You are an HR AI. Review this new offboarding case. Provide a very brief (1-2 sentence) comment or flag if anything seems unusual."
+        });
+        const aiComment = aiCommentResponse.analysis || "Case noted by AI.";
+
+        setActionMessage(`New case for ${createdCase.employeeName} added. AI Comment: ${aiComment}`);
+        setOffboardingCases(prev => [createdCase, ...prev]);
+        setShowNewCaseForm(false);
+        setNewCaseData({ type: 'Resignation', status: 'Initiated', initiatedDate: new Date() });
+    } catch (error) {
+        console.error("Error creating new offboarding case:", error);
+        setActionMessage(`Error creating new case: ${(error as Error).message}`);
+    } finally {
+        setIsLoading(false);
+        setTimeout(() => setActionMessage(null), 7000);
+    }
   };
 
 

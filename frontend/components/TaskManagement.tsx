@@ -147,7 +147,7 @@ const TaskManagement: React.FC = () => {
       {isLoading && tasks.length === 0 && <div className="flex justify-center my-4"><LoadingSpinner /> Loading tasks...</div>}
       {!isLoading && tasks.length === 0 && <p className="text-center text-gray-500 py-8">No tasks currently active.</p>}
 
-      {tasks.length > 0 && (
+      {tasks.length > 0 ? (
         <div className="overflow-x-auto">
           {/* Table structure remains largely the same, just ensure it uses `tasks` state */}
           {/* ... table from original TaskManagement.tsx ... */}
@@ -198,9 +198,10 @@ const TaskManagement: React.FC = () => {
           </tbody>
         </table>
       </div>
-      {tasks.length === 0 && !isLoading && (
+      ) : null}
+      {tasks.length === 0 && !isLoading ? (
         <p className="text-center text-gray-500 py-8">No tasks currently active.</p>
-      )}
+      ) : null}
     </div>
   );
 };

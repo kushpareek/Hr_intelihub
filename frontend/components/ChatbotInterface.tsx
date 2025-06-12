@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, Candidate } from '../types'; // Added Candidate
 // import { askQuery, getPolicyInformation } from '../services/geminiService'; // Will use apiClient
 import { apiClient } from '../services/api'; // Import apiClient
-import { LoadingSpinner, PaperAirplaneIcon, SparklesIcon, UserCircleIcon, CpuChipIcon } from './common/IconComponents'; // Added UserCircleIcon, CpuChipIcon
+import { LoadingSpinner, PaperAirplaneIcon, SparklesIcon, UserGroupIcon, CogIcon } from './common/IconComponents'; // Replaced UserCircleIcon with UserGroupIcon
 
 interface ChatbotInterfaceProps {
   mode: 'general' | 'policy' | 'candidate'; // Made mode required and added 'candidate'
@@ -106,7 +106,7 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ mode, policyContext
                   <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
                   <p className={`text-xs mt-1 ${msg.sender === 'user' ? 'text-blue-200' : 'text-gray-500'} text-right`}>{msg.timestamp.toLocaleTimeString()}</p>
                 </div>
-                {msg.sender === 'user' && <UserCircleIcon className="w-7 h-7 text-gray-500 mb-1 opacity-80" />}
+                {msg.sender === 'user' && <UserGroupIcon className="w-7 h-7 text-gray-500 mb-1 opacity-80" />} {/* Replaced UserCircleIcon */}
             </div>
           </div>
         ))}

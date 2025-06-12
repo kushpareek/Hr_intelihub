@@ -6,11 +6,12 @@ import { query } from '../config/db';
 // @desc    Get all onboarding items for the logged-in user
 // @route   GET /api/onboardingitems
 // @access  Private
-export const getOnboardingItems = async (req: AuthenticatedRequest, res: Response) => {
+export const getOnboardingItems = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     // Optional: Could also fetch related candidate details here with a JOIN
     const result = await query('SELECT * FROM onboarding_items WHERE user_id = $1 ORDER BY due_date ASC, created_at DESC', [userId]);
@@ -24,17 +25,19 @@ export const getOnboardingItems = async (req: AuthenticatedRequest, res: Respons
 // @desc    Get a single onboarding item by ID
 // @route   GET /api/onboardingitems/:id
 // @access  Private
-export const getOnboardingItemById = async (req: AuthenticatedRequest, res: Response) => {
+export const getOnboardingItemById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const itemId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('SELECT * FROM onboarding_items WHERE id = $1 AND user_id = $2', [itemId, userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -46,23 +49,26 @@ export const getOnboardingItemById = async (req: AuthenticatedRequest, res: Resp
 // @desc    Create a new onboarding item
 // @route   POST /api/onboardingitems
 // @access  Private
-export const createOnboardingItem = async (req: AuthenticatedRequest, res: Response) => {
+export const createOnboardingItem = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const { task, status, assignee, due_date, related_candidate_id } = req.body;
 
     if (!task || !status || !assignee) {
-      return res.status(400).json({ message: 'Task, status, and assignee are required fields' });
+      res.status(400).json({ message: 'Task, status, and assignee are required fields' });
+      return;
     }
 
     // Validate related_candidate_id if provided
     if (related_candidate_id) {
         const candidateCheck = await query('SELECT id FROM candidates WHERE id = $1 AND user_id = $2', [related_candidate_id, userId]);
         if (candidateCheck.rows.length === 0) {
-            return res.status(400).json({ message: 'Related candidate not found or does not belong to this user.' });
+            res.status(400).json({ message: 'Related candidate not found or does not belong to this user.' });
+            return;
         }
     }
 
@@ -80,19 +86,21 @@ export const createOnboardingItem = async (req: AuthenticatedRequest, res: Respo
 // @desc    Update an existing onboarding item
 // @route   PUT /api/onboardingitems/:id
 // @access  Private
-export const updateOnboardingItem = async (req: AuthenticatedRequest, res: Response) => {
+export const updateOnboardingItem = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const itemId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const { task, status, assignee, due_date, related_candidate_id } = req.body;
 
     const existingItem = await query('SELECT * FROM onboarding_items WHERE id = $1 AND user_id = $2', [itemId, userId]);
     if (existingItem.rows.length === 0) {
-      return res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      return;
     }
 
     if (related_candidate_id !== undefined) { // Check if it's being changed or set
@@ -101,7 +109,8 @@ export const updateOnboardingItem = async (req: AuthenticatedRequest, res: Respo
         } else {
             const candidateCheck = await query('SELECT id FROM candidates WHERE id = $1 AND user_id = $2', [related_candidate_id, userId]);
             if (candidateCheck.rows.length === 0) {
-                return res.status(400).json({ message: 'Related candidate not found or does not belong to this user for update.' });
+                res.status(400).json({ message: 'Related candidate not found or does not belong to this user for update.' });
+                return;
             }
         }
     }
@@ -115,7 +124,8 @@ export const updateOnboardingItem = async (req: AuthenticatedRequest, res: Respo
     if (related_candidate_id !== undefined) fieldsToUpdate.related_candidate_id = related_candidate_id; // handles null as well
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
     // fieldsToUpdate.updated_at = new Date(); // Trigger should handle this
 
@@ -137,17 +147,19 @@ export const updateOnboardingItem = async (req: AuthenticatedRequest, res: Respo
 // @desc    Delete an onboarding item
 // @route   DELETE /api/onboardingitems/:id
 // @access  Private
-export const deleteOnboardingItem = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteOnboardingItem = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const itemId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('DELETE FROM onboarding_items WHERE id = $1 AND user_id = $2 RETURNING *', [itemId, userId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      res.status(404).json({ message: 'Onboarding item not found or not authorized' });
+      return;
     }
     res.status(200).json({ message: 'Onboarding item deleted successfully' });
   } catch (error) {

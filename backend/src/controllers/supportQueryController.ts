@@ -6,7 +6,7 @@ import { query } from '../config/db';
 // @desc    Get all support queries
 // @route   GET /api/admin/supportqueries
 // @access  Admin
-export const getSupportQueries = async (req: AuthenticatedRequest, res: Response) => {
+export const getSupportQueries = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // Consider adding pagination for large number of queries
     const result = await query(
@@ -30,7 +30,7 @@ export const getSupportQueries = async (req: AuthenticatedRequest, res: Response
 // @desc    Get a single support query by ID
 // @route   GET /api/admin/supportqueries/:id
 // @access  Admin
-export const getSupportQueryById = async (req: AuthenticatedRequest, res: Response) => {
+export const getSupportQueryById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const queryId = req.params.id;
     const result = await query(
@@ -41,7 +41,8 @@ export const getSupportQueryById = async (req: AuthenticatedRequest, res: Respon
         [queryId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Support query not found' });
+      res.status(404).json({ message: 'Support query not found' });
+      return;
     }
     const queryData = result.rows[0];
     queryData.client_name = queryData.client_name || queryData.subscription_client_name;
@@ -55,7 +56,7 @@ export const getSupportQueryById = async (req: AuthenticatedRequest, res: Respon
 // @desc    Create a new support query (Admins might create on behalf of users or for internal tracking)
 // @route   POST /api/admin/supportqueries
 // @access  Admin
-export const createSupportQuery = async (req: AuthenticatedRequest, res: Response) => {
+export const createSupportQuery = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const {
         client_id, client_name, client_email, subject, description,
@@ -63,28 +64,33 @@ export const createSupportQuery = async (req: AuthenticatedRequest, res: Respons
     } = req.body;
 
     if (!subject || !description || !status) {
-      return res.status(400).json({ message: 'Subject, description, and status are required' });
+      res.status(400).json({ message: 'Subject, description, and status are required' });
+      return;
     }
     if (!client_id && (!client_name || !client_email)) {
-        return res.status(400).json({ message: 'Either client_id or both client_name and client_email are required.'});
+        res.status(400).json({ message: 'Either client_id or both client_name and client_email are required.'});
+        return;
     }
 
     // Validate client_id if provided
     if (client_id) {
         const clientCheck = await query('SELECT id FROM client_subscriptions WHERE id = $1', [client_id]);
         if (clientCheck.rows.length === 0) {
-            return res.status(400).json({ message: 'Provided client_id does not match an existing client subscription.' });
+            res.status(400).json({ message: 'Provided client_id does not match an existing client subscription.' });
+            return;
         }
     }
      // Validate assigned_to_user_id if provided (must be an admin or existing user)
     if (assigned_to_user_id) {
         const userCheck = await query('SELECT id, is_admin FROM users WHERE id = $1', [assigned_to_user_id]);
         if (userCheck.rows.length === 0) {
-            return res.status(400).json({ message: 'Assigned user ID does not exist.' });
+            res.status(400).json({ message: 'Assigned user ID does not exist.' });
+            return;
         }
         // Optionally, enforce assigned user must be an admin
         // if (!userCheck.rows[0].is_admin) {
-        //     return res.status(400).json({ message: 'Assigned user must be an admin.' });
+        //     res.status(400).json({ message: 'Assigned user must be an admin.' });
+        //     return;
         // }
     }
 
@@ -109,7 +115,7 @@ export const createSupportQuery = async (req: AuthenticatedRequest, res: Respons
 // @desc    Update an existing support query
 // @route   PUT /api/admin/supportqueries/:id
 // @access  Admin
-export const updateSupportQuery = async (req: AuthenticatedRequest, res: Response) => {
+export const updateSupportQuery = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const queryId = req.params.id;
     const {
@@ -119,7 +125,8 @@ export const updateSupportQuery = async (req: AuthenticatedRequest, res: Respons
 
     const existingQuery = await query('SELECT * FROM support_queries WHERE id = $1', [queryId]);
     if (existingQuery.rows.length === 0) {
-      return res.status(404).json({ message: 'Support query not found' });
+      res.status(404).json({ message: 'Support query not found' });
+      return;
     }
 
     if (client_id !== undefined) { // if client_id is being changed or set
@@ -128,7 +135,8 @@ export const updateSupportQuery = async (req: AuthenticatedRequest, res: Respons
          } else {
             const clientCheck = await query('SELECT id FROM client_subscriptions WHERE id = $1', [client_id]);
             if (clientCheck.rows.length === 0) {
-                return res.status(400).json({ message: 'Provided client_id does not match an existing client subscription for update.' });
+                res.status(400).json({ message: 'Provided client_id does not match an existing client subscription for update.' });
+                return;
             }
         }
     }
@@ -138,7 +146,8 @@ export const updateSupportQuery = async (req: AuthenticatedRequest, res: Respons
         } else {
             const userCheck = await query('SELECT id FROM users WHERE id = $1', [assigned_to_user_id]);
             if (userCheck.rows.length === 0) {
-                return res.status(400).json({ message: 'Assigned user ID does not exist for update.' });
+                res.status(400).json({ message: 'Assigned user ID does not exist for update.' });
+                return;
             }
         }
     }
@@ -156,7 +165,8 @@ export const updateSupportQuery = async (req: AuthenticatedRequest, res: Respons
     fieldsToUpdate.last_updated_date = new Date(); // Always update this
 
     if (Object.keys(fieldsToUpdate).length <= 1 && !fieldsToUpdate.last_updated_date) { // only last_updated_date is not enough
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
 
     const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `${key} = $${index + 1}`).join(', ');
@@ -177,12 +187,13 @@ export const updateSupportQuery = async (req: AuthenticatedRequest, res: Respons
 // @desc    Delete a support query
 // @route   DELETE /api/admin/supportqueries/:id
 // @access  Admin
-export const deleteSupportQuery = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteSupportQuery = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const queryId = req.params.id;
     const result = await query('DELETE FROM support_queries WHERE id = $1 RETURNING *', [queryId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Support query not found' });
+      res.status(404).json({ message: 'Support query not found' });
+      return;
     }
     res.status(200).json({ message: 'Support query deleted successfully' });
   } catch (error) {

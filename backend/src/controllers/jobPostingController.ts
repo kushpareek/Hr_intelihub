@@ -6,16 +6,18 @@ import { query } from '../config/db';
 // @desc    Get all job postings for the logged-in user (or all if admin)
 // @route   GET /api/jobpostings
 // @access  Private
-export const getJobPostings = async (req: AuthenticatedRequest, res: Response) => {
+export const getJobPostings = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     // const isAdmin = req.user?.isAdmin; // Optional: allow admin to see all
     // if (isAdmin) {
     //   const result = await query('SELECT * FROM job_postings ORDER BY created_at DESC');
-    //   return res.status(200).json(result.rows);
+    //   res.status(200).json(result.rows);
+    //   return;
     // }
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const result = await query('SELECT * FROM job_postings WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     res.status(200).json(result.rows);
@@ -28,13 +30,14 @@ export const getJobPostings = async (req: AuthenticatedRequest, res: Response) =
 // @desc    Get a single job posting by ID
 // @route   GET /api/jobpostings/:id
 // @access  Private (owner or admin)
-export const getJobPostingById = async (req: AuthenticatedRequest, res: Response) => {
+export const getJobPostingById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const jobPostingId = req.params.id;
 
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     // In a multi-tenant app or if public viewing is allowed, logic might change.
@@ -44,7 +47,8 @@ export const getJobPostingById = async (req: AuthenticatedRequest, res: Response
     // const result = await query('SELECT * FROM job_postings WHERE id = $1 AND (user_id = $2 OR $3 = TRUE)', [jobPostingId, userId, req.user?.isAdmin]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Job posting not found or not authorized' });
+      res.status(404).json({ message: 'Job posting not found or not authorized' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -56,16 +60,18 @@ export const getJobPostingById = async (req: AuthenticatedRequest, res: Response
 // @desc    Create a new job posting
 // @route   POST /api/jobpostings
 // @access  Private
-export const createJobPosting = async (req: AuthenticatedRequest, res: Response) => {
+export const createJobPosting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const { title, department, description, status, posted_at } = req.body;
 
     if (!title || !status) {
-      return res.status(400).json({ message: 'Title and status are required fields' });
+      res.status(400).json({ message: 'Title and status are required fields' });
+      return;
     }
 
     const result = await query(
@@ -82,19 +88,21 @@ export const createJobPosting = async (req: AuthenticatedRequest, res: Response)
 // @desc    Update an existing job posting
 // @route   PUT /api/jobpostings/:id
 // @access  Private
-export const updateJobPosting = async (req: AuthenticatedRequest, res: Response) => {
+export const updateJobPosting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const jobPostingId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const { title, department, description, status, posted_at } = req.body;
 
     const existingPosting = await query('SELECT * FROM job_postings WHERE id = $1 AND user_id = $2', [jobPostingId, userId]);
     if (existingPosting.rows.length === 0) {
-      return res.status(404).json({ message: 'Job posting not found or not authorized' });
+      res.status(404).json({ message: 'Job posting not found or not authorized' });
+      return;
     }
 
     const fieldsToUpdate: any = {};
@@ -105,7 +113,8 @@ export const updateJobPosting = async (req: AuthenticatedRequest, res: Response)
     if (posted_at !== undefined) fieldsToUpdate.posted_at = posted_at ? new Date(posted_at) : null;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
     fieldsToUpdate.updated_at = new Date(); // Trigger should handle this
 
@@ -127,17 +136,19 @@ export const updateJobPosting = async (req: AuthenticatedRequest, res: Response)
 // @desc    Delete a job posting
 // @route   DELETE /api/jobpostings/:id
 // @access  Private
-export const deleteJobPosting = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteJobPosting = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const jobPostingId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('DELETE FROM job_postings WHERE id = $1 AND user_id = $2 RETURNING *', [jobPostingId, userId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Job posting not found or not authorized' });
+      res.status(404).json({ message: 'Job posting not found or not authorized' });
+      return;
     }
     res.status(200).json({ message: 'Job posting deleted successfully' });
   } catch (error) {

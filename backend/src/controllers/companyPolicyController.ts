@@ -6,7 +6,7 @@ import { query } from '../config/db';
 // @desc    Get all company policies
 // @route   GET /api/policies
 // @access  Private (all authenticated users can read)
-export const getCompanyPolicies = async (req: AuthenticatedRequest, res: Response) => {
+export const getCompanyPolicies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // No user_id check, policies are global for now
     const result = await query('SELECT * FROM company_policies ORDER BY category, title');
@@ -20,13 +20,14 @@ export const getCompanyPolicies = async (req: AuthenticatedRequest, res: Respons
 // @desc    Get a single company policy by ID
 // @route   GET /api/policies/:id
 // @access  Private (all authenticated users can read)
-export const getCompanyPolicyById = async (req: AuthenticatedRequest, res: Response) => {
+export const getCompanyPolicyById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const policyId = req.params.id;
     const result = await query('SELECT * FROM company_policies WHERE id = $1', [policyId]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Company policy not found' });
+      res.status(404).json({ message: 'Company policy not found' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -38,16 +39,18 @@ export const getCompanyPolicyById = async (req: AuthenticatedRequest, res: Respo
 // @desc    Create a new company policy
 // @route   POST /api/policies
 // @access  Private (For now, any authenticated user. Could be restricted to admin later)
-export const createCompanyPolicy = async (req: AuthenticatedRequest, res: Response) => {
+export const createCompanyPolicy = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // const isAdmin = req.user?.isAdmin;
     // if (!isAdmin) {
-    //   return res.status(403).json({ message: 'Not authorized to create policies' });
+    //   res.status(403).json({ message: 'Not authorized to create policies' });
+    //   return;
     // }
     const { title, category, content_snippet, full_content } = req.body;
 
     if (!title || !category) {
-      return res.status(400).json({ message: 'Title and category are required fields' });
+      res.status(400).json({ message: 'Title and category are required fields' });
+      return;
     }
 
     const result = await query(
@@ -64,18 +67,20 @@ export const createCompanyPolicy = async (req: AuthenticatedRequest, res: Respon
 // @desc    Update an existing company policy
 // @route   PUT /api/policies/:id
 // @access  Private (For now, any authenticated user. Could be restricted to admin later)
-export const updateCompanyPolicy = async (req: AuthenticatedRequest, res: Response) => {
+export const updateCompanyPolicy = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // const isAdmin = req.user?.isAdmin;
     // if (!isAdmin) {
-    //   return res.status(403).json({ message: 'Not authorized to update policies' });
+    //   res.status(403).json({ message: 'Not authorized to update policies' });
+    //   return;
     // }
     const policyId = req.params.id;
     const { title, category, content_snippet, full_content } = req.body;
 
     const existingPolicy = await query('SELECT * FROM company_policies WHERE id = $1', [policyId]);
     if (existingPolicy.rows.length === 0) {
-      return res.status(404).json({ message: 'Company policy not found' });
+      res.status(404).json({ message: 'Company policy not found' });
+      return;
     }
 
     const fieldsToUpdate: any = {};
@@ -85,7 +90,8 @@ export const updateCompanyPolicy = async (req: AuthenticatedRequest, res: Respon
     if (full_content !== undefined) fieldsToUpdate.full_content = full_content;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
     // fieldsToUpdate.updated_at = new Date(); // Trigger should handle this
 
@@ -107,17 +113,19 @@ export const updateCompanyPolicy = async (req: AuthenticatedRequest, res: Respon
 // @desc    Delete a company policy
 // @route   DELETE /api/policies/:id
 // @access  Private (For now, any authenticated user. Could be restricted to admin later)
-export const deleteCompanyPolicy = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteCompanyPolicy = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     // const isAdmin = req.user?.isAdmin;
     // if (!isAdmin) {
-    //   return res.status(403).json({ message: 'Not authorized to delete policies' });
+    //   res.status(403).json({ message: 'Not authorized to delete policies' });
+    //   return;
     // }
     const policyId = req.params.id;
 
     const result = await query('DELETE FROM company_policies WHERE id = $1 RETURNING *', [policyId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Company policy not found' });
+      res.status(404).json({ message: 'Company policy not found' });
+      return;
     }
     res.status(200).json({ message: 'Company policy deleted successfully' });
   } catch (error) {

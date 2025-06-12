@@ -19,6 +19,10 @@ pool.connect((err, client, release) => {
   if (err) {
     return console.error('Error acquiring client for DB connection test', err.stack);
   }
+  if (!client) { // Explicitly check if client is undefined
+    release(); // Release if client is somehow undefined after error check
+    return console.error('DB client is undefined after connection attempt without error.');
+  }
   client.query('SELECT NOW()', (err, result) => {
     release();
     if (err) {

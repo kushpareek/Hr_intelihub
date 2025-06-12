@@ -6,11 +6,12 @@ import { query } from '../config/db';
 // @desc    Get all offboarding cases for the logged-in user
 // @route   GET /api/offboardingcases
 // @access  Private
-export const getOffboardingCases = async (req: AuthenticatedRequest, res: Response) => {
+export const getOffboardingCases = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const result = await query('SELECT * FROM offboarding_cases WHERE user_id = $1 ORDER BY initiated_date DESC', [userId]);
     res.status(200).json(result.rows);
@@ -23,17 +24,19 @@ export const getOffboardingCases = async (req: AuthenticatedRequest, res: Respon
 // @desc    Get a single offboarding case by ID
 // @route   GET /api/offboardingcases/:id
 // @access  Private
-export const getOffboardingCaseById = async (req: AuthenticatedRequest, res: Response) => {
+export const getOffboardingCaseById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const caseId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('SELECT * FROM offboarding_cases WHERE id = $1 AND user_id = $2', [caseId, userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      return;
     }
     res.status(200).json(result.rows[0]);
   } catch (error) {
@@ -45,11 +48,12 @@ export const getOffboardingCaseById = async (req: AuthenticatedRequest, res: Res
 // @desc    Create a new offboarding case
 // @route   POST /api/offboardingcases
 // @access  Private
-export const createOffboardingCase = async (req: AuthenticatedRequest, res: Response) => {
+export const createOffboardingCase = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
     const {
         employee_name, employee_id, type, status, initiated_date,
@@ -58,13 +62,15 @@ export const createOffboardingCase = async (req: AuthenticatedRequest, res: Resp
     } = req.body;
 
     if (!employee_name || !type || !status || !initiated_date) {
-      return res.status(400).json({ message: 'Employee name, type, status, and initiated date are required' });
+      res.status(400).json({ message: 'Employee name, type, status, and initiated date are required' });
+      return;
     }
 
     if (related_candidate_id) {
         const candidateCheck = await query('SELECT id FROM candidates WHERE id = $1 AND user_id = $2', [related_candidate_id, userId]);
         if (candidateCheck.rows.length === 0) {
-            return res.status(400).json({ message: 'Related candidate not found or does not belong to this user.' });
+            res.status(400).json({ message: 'Related candidate not found or does not belong to this user.' });
+            return;
         }
     }
 
@@ -92,12 +98,13 @@ export const createOffboardingCase = async (req: AuthenticatedRequest, res: Resp
 // @desc    Update an existing offboarding case
 // @route   PUT /api/offboardingcases/:id
 // @access  Private
-export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Response) => {
+export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const caseId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const {
@@ -108,7 +115,8 @@ export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Resp
 
     const existingCase = await query('SELECT * FROM offboarding_cases WHERE id = $1 AND user_id = $2', [caseId, userId]);
     if (existingCase.rows.length === 0) {
-      return res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      return;
     }
 
     if (related_candidate_id !== undefined) {
@@ -117,7 +125,8 @@ export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Resp
         } else {
             const candidateCheck = await query('SELECT id FROM candidates WHERE id = $1 AND user_id = $2', [related_candidate_id, userId]);
             if (candidateCheck.rows.length === 0) {
-                return res.status(400).json({ message: 'Related candidate not found or does not belong to this user for update.' });
+                res.status(400).json({ message: 'Related candidate not found or does not belong to this user for update.' });
+                return;
             }
         }
     }
@@ -136,7 +145,8 @@ export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Resp
     if (related_candidate_id !== undefined) fieldsToUpdate.related_candidate_id = related_candidate_id;
 
     if (Object.keys(fieldsToUpdate).length === 0) {
-      return res.status(400).json({ message: 'No fields provided for update' });
+      res.status(400).json({ message: 'No fields provided for update' });
+      return;
     }
 
     const setClauses = Object.keys(fieldsToUpdate).map((key, index) => `${key} = $${index + 1}`).join(', ');
@@ -157,17 +167,19 @@ export const updateOffboardingCase = async (req: AuthenticatedRequest, res: Resp
 // @desc    Delete an offboarding case
 // @route   DELETE /api/offboardingcases/:id
 // @access  Private
-export const deleteOffboardingCase = async (req: AuthenticatedRequest, res: Response) => {
+export const deleteOffboardingCase = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const caseId = req.params.id;
     if (!userId) {
-      return res.status(400).json({ message: 'User ID not found in token' });
+      res.status(400).json({ message: 'User ID not found in token' });
+      return;
     }
 
     const result = await query('DELETE FROM offboarding_cases WHERE id = $1 AND user_id = $2 RETURNING *', [caseId, userId]);
     if (result.rowCount === 0) {
-      return res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      res.status(404).json({ message: 'Offboarding case not found or not authorized' });
+      return;
     }
     res.status(200).json({ message: 'Offboarding case deleted successfully' });
   } catch (error) {
